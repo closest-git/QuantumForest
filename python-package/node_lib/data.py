@@ -276,7 +276,7 @@ def fetch_YEAR(path, train_size=None, valid_size=None, test_size=51630):
         shuffled_indices = np.random.permutation(np.arange(len(X_train)))
         train_idx = shuffled_indices[:train_size]
         valid_idx = shuffled_indices[train_size: train_size + valid_size]
-
+    print(f"fetch_YEAR\ttrain={X_train[train_idx].shape} valid={X_train[valid_idx].shape} test={X_test.shape}")
     return dict(
         X_train=X_train[train_idx], y_train=y_train[train_idx],
         X_valid=X_train[valid_idx], y_valid=y_train[valid_idx],
