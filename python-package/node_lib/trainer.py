@@ -121,7 +121,7 @@ class Trainer(nn.Module):
         self.model.train()
         self.opt.zero_grad()
         y_output=self.model(x_batch)
-        loss = self.loss_function(self.model(x_batch), y_batch).mean()
+        loss = self.loss_function(y_output, y_batch).mean()         #self.model(x_batch)
         loss.backward()
         self.opt.step()
         self.step += 1

@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/QuantumnForest.iml" filepath="$PROJECT_DIR$/.idea/QuantumnForest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/QuantumForest.iml" filepath="$PROJECT_DIR$/.idea/QuantumForest.iml" />
     </modules>
   </component>
 </project>

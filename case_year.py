@@ -11,24 +11,33 @@ import numpy as np
 import matplotlib.pyplot as plt
 import node_lib
 import pandas as pd
-
+import pickle
 import torch, torch.nn as nn
 import torch.nn.functional as F
 import lightgbm as lgb
-
+import random
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 experiment_name = 'year_node_shallow'
 experiment_name = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment_name, *time.gmtime()[:5])
 print("experiment:", experiment_name)
-def LoadData():
-    data = node_lib.Dataset("YEAR", random_state=1337, quantile_transform=True, quantile_noise=1e-3)
-    #data = node_lib.Dataset("HIGGS",data_path="F:/Datasets/",random_state=1337, quantile_transform=True, quantile_noise=1e-3)
-    in_features = data.X_train.shape[1]
-    mu, std = data.y_train.mean(), data.y_train.std()
-    normalize = lambda x: ((x - mu) / std).astype(np.float32)
-    data.y_train, data.y_valid, data.y_test = map(normalize, [data.y_train, data.y_valid, data.y_test])
-    print("mean = %.5f, std = %.5f" % (mu, std))
+
+def LoadData(data_name="YEAR"):
+    pkl_path = f'./data/{data_name}.pickle'
+    if os.path.isfile(pkl_path):
+        print("====== LoadData@{} ......".format(pkl_path))
+        with open(pkl_path, "rb") as fp:
+            data = pickle.load(fp)
+    else:
+        data = node_lib.Dataset(data_name, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
+        #data = node_lib.Dataset("HIGGS",data_path="F:/Datasets/",random_state=1337, quantile_transform=True, quantile_noise=1e-3)
+        in_features = data.X_train.shape[1]
+        mu, std = data.y_train.mean(), data.y_train.std()
+        normalize = lambda x: ((x - mu) / std).astype(np.float32)
+        data.y_train, data.y_valid, data.y_test = map(normalize, [data.y_train, data.y_valid, data.y_test])
+        print("mean = %.5f, std = %.5f" % (mu, std))
+        with open(pkl_path, "wb") as fp:
+            pickle.dump(data,fp)
     return data
 
 def GBDT_test(data):
@@ -66,12 +75,12 @@ def GBDT_test(data):
         #model.booster_.save_model('geo_test_.model')
 
 def NODE_test(data):
+    depth,batch_size=5,256          #6,1024
     in_features = data.X_train.shape[1]
     model = nn.Sequential(
-        node_lib.DenseBlock(in_features, 2048, num_layers=1, tree_dim=3, depth=6, flatten_output=False,
+        node_lib.DenseBlock(in_features, 2048, num_layers=1, tree_dim=3, depth=depth, flatten_output=False,
                        choice_function=node_lib.entmax15, bin_function=node_lib.entmoid15),
         node_lib.Lambda(lambda x: x[..., 0].mean(dim=-1)),  # average first channels of every tree
-
     ).to(device)
 
     def dump_model_params(model):
@@ -85,9 +94,9 @@ def NODE_test(data):
     print(model)
     dump_model_params(model)
 
-    with torch.no_grad():
-        res = model(torch.as_tensor(data.X_train[:1000], device=device))
-        # trigger data-aware init
+    if False:       # trigger data-aware init
+        with torch.no_grad():
+            res = model(torch.as_tensor(data.X_train[:1000], device=device))
 
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
@@ -109,15 +118,15 @@ def NODE_test(data):
     best_mse = float('inf')
     best_step_mse = 0
     early_stopping_rounds = 5000
-    report_frequency = 100
-    #batch_size=512     batch_size=1024
+    report_frequency = 1000
+
     print(f"trainer.model={trainer.model}\ntrainer.loss_function={trainer.loss_function}\ntrainer.opt={trainer.opt}")
-    for batch in node_lib.iterate_minibatches(data.X_train, data.y_train, batch_size=128,
+    t0=time.time()
+    for batch in node_lib.iterate_minibatches(data.X_train, data.y_train, batch_size=batch_size,
                                          shuffle=True, epochs=float('inf')):
         metrics = trainer.train_on_batch(*batch, device=device)
-
         loss_history.append(metrics['loss'])
-
+        print(f"\r============ {trainer.step}\tLoss={metrics['loss']:.5f}\ttime={time.time()-t0:.6f}",end="")
         if trainer.step % report_frequency == 0:
             trainer.save_checkpoint()
             trainer.average_checkpoints(out_tag='avg')
@@ -145,8 +154,7 @@ def NODE_test(data):
             plt.title('MSE')
             plt.grid()
             plt.show()
-            print("Loss %.5f" % (metrics['loss']))
-            print("Val MSE: %0.5f" % (mse))
+            print(f"loss_{trainer.step}\t{metrics['loss']:.5f}\tVal MSE:{mse:.5f}" )
         if trainer.step > best_step_mse + early_stopping_rounds:
             print('BREAK. There is no improvment for {} steps'.format(early_stopping_rounds))
             print("Best step: ", best_step_mse)
@@ -160,7 +168,11 @@ def NODE_test(data):
 
 if __name__ == "__main__":
     data = LoadData()
-    if False:
+    random_state = 42
+    np.random.seed(random_state)
+    torch.manual_seed(random_state)
+    random.seed(random_state)
+    if True:
         NODE_test(data)
     else:
         GBDT_test(data)
