@@ -4,6 +4,7 @@ import glob
 import numpy as np
 import torch
 import torch.nn as nn
+
 import torch.nn.functional as F
 
 from .utils import get_latest_file, iterate_minibatches, check_numpy, process_in_chunks
@@ -29,7 +30,7 @@ class Trainer(nn.Module):
         """
         super().__init__()
         self.model = model
-        self.loss_function = loss_function
+        #self.loss_function = loss_function
         self.verbose = verbose
         self.opt = Optimizer(list(self.model.parameters()), **optimizer_params)
         self.step = 0
@@ -114,6 +115,10 @@ class Trainer(nn.Module):
             os.remove(ckpt)
 
     def train_on_batch(self, *batch, device):
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            #mem_info = torch.cuda.memory_stats(device=None)
+            #print(mem_info)
         x_batch, y_batch = batch
         x_batch = torch.as_tensor(x_batch, device=device)
         y_batch = torch.as_tensor(y_batch, device=device)
@@ -121,13 +126,17 @@ class Trainer(nn.Module):
         self.model.train()
         self.opt.zero_grad()
         y_output=self.model(x_batch)
-        loss = self.loss_function(y_output, y_batch).mean()         #self.model(x_batch)
+        #loss = self.loss_function(y_output, y_batch).mean()         #self.model(x_batch)
+        loss = F.mse_loss(y_output, y_batch)
+        loss = loss.mean()
+        #print(f"\t{torch.min(loss)}:{torch.max(loss)}")
         loss.backward()
         self.opt.step()
         self.step += 1
         self.writer.add_scalar('train loss', loss.item(), self.step)
-        
-        return {'loss': loss}
+        metric = {'loss': loss.item()}
+        del loss
+        return metric
 
     def evaluate_classification_error(self, X_test, y_test, device, batch_size=4096):
         X_test = torch.as_tensor(X_test, device=device)

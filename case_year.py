@@ -120,7 +120,7 @@ def NODE_test(data):
     early_stopping_rounds = 5000
     report_frequency = 1000
 
-    print(f"trainer.model={trainer.model}\ntrainer.loss_function={trainer.loss_function}\ntrainer.opt={trainer.opt}")
+    print(f"trainer.model={trainer.model}\ntrainer.opt={trainer.opt}")
     t0=time.time()
     for batch in node_lib.iterate_minibatches(data.X_train, data.y_train, batch_size=batch_size,
                                          shuffle=True, epochs=float('inf')):

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import random
 
 from .nn_utils import sparsemax, sparsemoid, ModuleWithInit
 from .utils import check_numpy
@@ -9,6 +10,35 @@ from warnings import warn
 
 
 class ODST(ModuleWithInit):
+    def init_choice_weight(self,initialize_selection_logits_,in_features, num_trees, depth):
+        self.choice_reuse=False
+        self.in_features, self.num_trees, self.depth=in_features, num_trees, depth
+        self.nChoice = self.num_trees*self.depth
+        if self.choice_reuse:
+            self.nChoice = self.nChoice//10
+            self.choice_map = [random.randrange(0, self.nChoice) for _ in range(self.num_trees*self.depth)] #random.sample(range(self.nSeed), self.nChoice)
+            assert len(self.choice_map)==self.num_trees*self.depth
+        self.feature_selection_logits = nn.Parameter(
+            torch.zeros([self.in_features, self.nChoice]), requires_grad=True
+        )
+        initialize_selection_logits_(self.feature_selection_logits)
+
+    #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
+    def get_choice_weight(self):
+        feature_logits = self.feature_selection_logits
+        choice_weight = self.choice_function(feature_logits, dim=0)
+        #feature_selectors = self.choice_function(self.feature_selection_logits, dim=0)
+        # ^--[in_features, num_trees, depth]
+        if self.choice_reuse:
+            choice_weight = choice_weight[:, self.choice_map]
+            #for i,id in enumerate(self.choice_map):
+            #    self.choice[:,i] = choice_weight[:,id]
+        else:
+            pass
+        choice_weight = choice_weight.view(self.in_features,self.num_trees,-1)
+
+        return choice_weight
+
     def __init__(self, in_features, num_trees, depth=6, tree_dim=1, flatten_output=True,
                  choice_function=sparsemax, bin_function=sparsemoid,
                  initialize_response_=nn.init.normal_, initialize_selection_logits_=nn.init.uniform_,
@@ -52,10 +82,13 @@ class ODST(ModuleWithInit):
         self.response = nn.Parameter(torch.zeros([num_trees, tree_dim, 2 ** depth]), requires_grad=True)
         initialize_response_(self.response)
 
-        self.feature_selection_logits = nn.Parameter(
-            torch.zeros([in_features, num_trees, depth]), requires_grad=True
+        self.init_choice_weight(initialize_selection_logits_,in_features, num_trees, depth)
+        '''
+        self.feature_selection_logits = nn.Parameter(torch.zeros([in_features, num_trees, depth]), requires_grad=True
         )
         initialize_selection_logits_(self.feature_selection_logits)
+        '''
+
 
         self.feature_thresholds = nn.Parameter(
             torch.full([num_trees, depth], float('nan'), dtype=torch.float32), requires_grad=True
@@ -80,9 +113,12 @@ class ODST(ModuleWithInit):
             return self.forward(input.view(-1, input.shape[-1])).view(*input.shape[:-1], -1)
         # new input shape: [batch_size, in_features]
 
+        feature_selectors = self.get_choice_weight()
+        '''
         feature_logits = self.feature_selection_logits
         feature_selectors = self.choice_function(feature_logits, dim=0)
-        # ^--[in_features, num_trees, depth]
+        # ^--[in_features, num_trees, depth]        
+        '''
 
         feature_values = torch.einsum('bi,ind->bnd', input, feature_selectors)
         # ^--[batch_size, num_trees, depth]
@@ -114,7 +150,8 @@ class ODST(ModuleWithInit):
                  "To avoid potential problems, run this model on a data batch with at least 1000 data samples."
                  "You can do so manually before training. Use with torch.no_grad() for memory efficiency.")
         with torch.no_grad():
-            feature_selectors = self.choice_function(self.feature_selection_logits, dim=0)
+            feature_selectors = self.get_choice_weight()
+            #feature_selectors = self.choice_function(self.feature_selection_logits, dim=0)
             # ^--[in_features, num_trees, depth]
 
             feature_values = torch.einsum('bi,ind->bnd', input, feature_selectors)
