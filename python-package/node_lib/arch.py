@@ -6,10 +6,10 @@ from .odst import ODST
 
 class DenseBlock(nn.Sequential):
     def __init__(self, input_dim, layer_dim, num_layers, tree_dim=1, max_features=None,
-                 input_dropout=0.0, flatten_output=True, Module=ODST, **kwargs):
+                 input_dropout=0.0, flatten_output=True, Module=ODST,feat_info=None, **kwargs):
         layers = []
         for i in range(num_layers):
-            oddt = Module(input_dim, layer_dim, tree_dim=tree_dim, flatten_output=True, **kwargs)
+            oddt = Module(input_dim, layer_dim, tree_dim=tree_dim, flatten_output=True,feat_info=feat_info, **kwargs)
             input_dim = min(input_dim + layer_dim * tree_dim, max_features or float('inf'))
             layers.append(oddt)
 

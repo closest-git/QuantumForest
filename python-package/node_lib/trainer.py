@@ -41,10 +41,14 @@ class Trainer(nn.Module):
             if self.verbose:
                 print('using automatic experiment name: ' + experiment_name)
 
-        self.experiment_path = os.path.join('logs/', experiment_name)
-        if not warm_start and experiment_name != 'debug':
-            assert not os.path.exists(self.experiment_path), 'experiment {} already exists'.format(experiment_name)
+        if True:
+            self.experiment_path = os.path.join('logs/', experiment_name)
+            if not warm_start and experiment_name != 'debug':
+                assert not os.path.exists(self.experiment_path), 'experiment {} already exists'.format(experiment_name)
+        else:
+            self.experiment_path = os.path.join('logs/', "cys")
         self.writer = SummaryWriter(self.experiment_path, comment=experiment_name)
+
         if warm_start:
             self.load_checkpoint()
     
@@ -115,7 +119,7 @@ class Trainer(nn.Module):
             os.remove(ckpt)
 
     def train_on_batch(self, *batch, device):
-        if torch.cuda.is_available():
+        if False and torch.cuda.is_available():     #need lots of time!!!
             torch.cuda.empty_cache()
             #mem_info = torch.cuda.memory_stats(device=None)
             #print(mem_info)

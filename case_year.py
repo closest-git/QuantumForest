@@ -1,3 +1,7 @@
+'''
+
+'''
+
 import os, sys
 import time
 sys.path.insert(0, './python-package/')
@@ -40,19 +44,27 @@ def LoadData(data_name="YEAR"):
             pickle.dump(data,fp)
     return data
 
+def plot_importance(model,nMax=30):
+    plt.figure(figsize=(12, 6))
+    lgb.plot_importance(model, max_num_features=nMax)
+    plt.title("Featurertances")
+    plt.show()
+
 def GBDT_test(data):
     model_type = "mort" if isMORT else "lgb"
+    nFeatures = data.X_train.shape[1]
     some_rows = 10000
     early_stop = 100;    verbose_eval = 20
     metric = 'l2'       #"rmse"
-    num_rounds = 10000; nLeaf = 41
-    lr = 0.1;    bf = 0.51;    ff = 0.81
+    num_rounds = 100000; nLeaf = 32
+    lr = 0.02;    bf = 0.51;    ff = 0.81
 
     params = {"objective": "regression", "metric": metric,
               "num_leaves": nLeaf, "learning_rate": lr, 'n_estimators': num_rounds,
               "bagging_freq": 1, "bagging_fraction": bf, "feature_fraction": ff, 'min_data_in_leaf': 10000,
               'verbose_eval': verbose_eval, "early_stopping_rounds": early_stop, 'n_jobs': -1, "elitism": 0
               }
+    print(f"====== GBDT_test\tparams={params}")
     X_train, y_train = data.X_train, data.y_train
     X_valid, y_valid = data.X_valid, data.y_valid
     X_test, y_test = data.X_test, data.y_test
@@ -69,17 +81,27 @@ def GBDT_test(data):
         #y_pred = model.predict(X_test)
 
     if model_type == 'lgb':
-        params['verbose'] = 667
+        #params['verbose'] = 0   #667
         model = lgb.LGBMRegressor(**params)
         model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=200)
+        plot_importance(model)
+        fold_importance = pd.DataFrame()
+        fold_importance["importance"] = model.feature_importances_
+        fold_importance["feature"] = [i for i in range(nFeatures)]
+        fold_importance["fold"] = 0
+        fold_importance.to_pickle("./results/year_feat_.pickle")
+
+
         #model.booster_.save_model('geo_test_.model')
 
-def NODE_test(data):
-    depth,batch_size=5,256          #6,1024
+def NODE_test(data,feat_info=None):
+    depth,batch_size,nTree=5,1024 ,256         #0.6355-0.6485(choice_reuse)
+    depth,batch_size,nTree=5,256 ,2048
+    print(f"======  NODE_test depth={depth},batch={batch_size},nTree={nTree}\n")
     in_features = data.X_train.shape[1]
     model = nn.Sequential(
-        node_lib.DenseBlock(in_features, 2048, num_layers=1, tree_dim=3, depth=depth, flatten_output=False,
-                       choice_function=node_lib.entmax15, bin_function=node_lib.entmoid15),
+        node_lib.DenseBlock(in_features, nTree, num_layers=1, tree_dim=3, depth=depth, flatten_output=False,
+                       choice_function=node_lib.entmax15, bin_function=node_lib.entmoid15,feat_info=feat_info),
         node_lib.Lambda(lambda x: x[..., 0].mean(dim=-1)),  # average first channels of every tree
     ).to(device)
 
@@ -94,7 +116,7 @@ def NODE_test(data):
     print(model)
     dump_model_params(model)
 
-    if False:       # trigger data-aware init
+    if False:       # trigger data-aware init,作用不明显
         with torch.no_grad():
             res = model(torch.as_tensor(data.X_train[:1000], device=device))
 
@@ -173,7 +195,9 @@ if __name__ == "__main__":
     torch.manual_seed(random_state)
     random.seed(random_state)
     if True:
-        NODE_test(data)
+        feat_info = pd.read_pickle("./results/year_feat_.pickle")
+        feat_info = None
+        NODE_test(data,feat_info)
     else:
         GBDT_test(data)
         input("...")

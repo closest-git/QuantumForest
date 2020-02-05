@@ -3,25 +3,50 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import random
-
+import math
 from .nn_utils import sparsemax, sparsemoid, ModuleWithInit
 from .utils import check_numpy
 from warnings import warn
 
 
 class ODST(ModuleWithInit):
-    def init_choice_weight(self,initialize_selection_logits_,in_features, num_trees, depth):
-        self.choice_reuse=False
+    def init_choice_weight(self,init_func,in_features, num_trees, depth,feat_info=None):
+        #f = initialize_selection_logits_.__name__
+        init_func = nn.init.uniform_
+        self.choice_reuse = False
         self.in_features, self.num_trees, self.depth=in_features, num_trees, depth
         self.nChoice = self.num_trees*self.depth
         if self.choice_reuse:
             self.nChoice = self.nChoice//10
+            print(f"======  init_choice_weight nChoice={self.nChoice}")
             self.choice_map = [random.randrange(0, self.nChoice) for _ in range(self.num_trees*self.depth)] #random.sample(range(self.nSeed), self.nChoice)
             assert len(self.choice_map)==self.num_trees*self.depth
         self.feature_selection_logits = nn.Parameter(
             torch.zeros([self.in_features, self.nChoice]), requires_grad=True
         )
-        initialize_selection_logits_(self.feature_selection_logits)
+        feat_val = torch.zeros([self.in_features, self.nChoice])
+        init_func(feat_val)
+        if feat_info is not None and 'importance' in feat_info.columns:
+            importance = torch.from_numpy(feat_info['importance'].values).float()
+            assert importance.shape[0]==in_features
+            fmax,fmin=torch.max(importance),torch.min(importance)
+            weight = importance/fmax
+            #weight = weight*weight*weight
+            for i in range(self.nChoice):
+                #print(feat_val[:,i])
+                feat_val[:,i] = feat_val[:,i]*weight
+                #print(feat_val[:, i])
+            self.feature_selection_logits = nn.Parameter(
+                feat_val, requires_grad=True
+            )
+            print(f"====== init_choice_weight from feat_info={feat_info.columns}")
+            pass
+
+        self.feature_selection_logits = nn.Parameter(
+            feat_val, requires_grad=True
+        )
+        #init_func(self.feature_selection_logits)
+        print(f"====== init_choice_weight f={init_func.__name__}")
 
     #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
     def get_choice_weight(self):
@@ -40,7 +65,7 @@ class ODST(ModuleWithInit):
         return choice_weight
 
     def __init__(self, in_features, num_trees, depth=6, tree_dim=1, flatten_output=True,
-                 choice_function=sparsemax, bin_function=sparsemoid,
+                 choice_function=sparsemax, bin_function=sparsemoid,feat_info=None,
                  initialize_response_=nn.init.normal_, initialize_selection_logits_=nn.init.uniform_,
                  threshold_init_beta=1.0, threshold_init_cutoff=1.0,
                  ):
@@ -75,6 +100,7 @@ class ODST(ModuleWithInit):
             All points will be between (0.5 - 0.5 / threshold_init_cutoff) and (0.5 + 0.5 / threshold_init_cutoff)
         """
         super().__init__()
+
         self.depth, self.num_trees, self.tree_dim, self.flatten_output = depth, num_trees, tree_dim, flatten_output
         self.choice_function, self.bin_function = choice_function, bin_function
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
@@ -82,7 +108,7 @@ class ODST(ModuleWithInit):
         self.response = nn.Parameter(torch.zeros([num_trees, tree_dim, 2 ** depth]), requires_grad=True)
         initialize_response_(self.response)
 
-        self.init_choice_weight(initialize_selection_logits_,in_features, num_trees, depth)
+        self.init_choice_weight(initialize_selection_logits_,in_features, num_trees, depth,feat_info)
         '''
         self.feature_selection_logits = nn.Parameter(torch.zeros([in_features, num_trees, depth]), requires_grad=True
         )
@@ -128,14 +154,16 @@ class ODST(ModuleWithInit):
         threshold_logits = torch.stack([-threshold_logits, threshold_logits], dim=-1)
         # ^--[batch_size, num_trees, depth, 2]
 
+        #RESPONSE_WEIGHTS 1)choice at each level of OTree 2) 3)c1*c2*c3*c4*c5 for each [leaf,tree,sample]
         bins = self.bin_function(threshold_logits)
-        # ^--[batch_size, num_trees, depth, 2], approximately binary
-
-        bin_matches = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
-        # ^--[batch_size, num_trees, depth, 2 ** depth]
-
-        response_weights = torch.prod(bin_matches, dim=-2)
-        # ^-- [batch_size, num_trees, 2 ** depth]
+        if True:   #too much memory
+            # ^--[batch_size, num_trees, depth, 2], approximately binary
+            bin_matches = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
+            # ^--[batch_size, num_trees, depth, 2 ** depth]
+            response_weights = torch.prod(bin_matches, dim=-2)
+            # ^-- [batch_size, num_trees, 2 ** depth]
+        else:
+            response_weights = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
 
         response = torch.einsum('bnd,ncd->bnc', response_weights, self.response)
         # ^-- [batch_size, num_trees, tree_dim]

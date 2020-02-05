@@ -171,6 +171,14 @@ class Entmoid15(Function):
 
     @staticmethod
     def backward(ctx, grad_output):
+        '''
+        output = ctx.saved_tensors[0]
+        gppr0, gppr1 = output.sqrt(), (1 - output).sqrt()
+        grad_input = grad_output * gppr0
+        q = grad_input / (gppr0 + gppr1)
+        grad_input -= q * gppr0
+        return grad_input
+        '''
         return Entmoid15._backward(ctx.saved_tensors[0], grad_output)
 
     @staticmethod
