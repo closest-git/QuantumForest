@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import random
 import math
-from .nn_utils import sparsemax, sparsemoid, ModuleWithInit
+from .nn_utils import sparsemax, sparsemoid, ModuleWithInit,entmoid15
 from .utils import check_numpy
 from warnings import warn
 
@@ -104,6 +104,8 @@ class ODST(ModuleWithInit):
         self.depth, self.num_trees, self.tree_dim, self.flatten_output = depth, num_trees, tree_dim, flatten_output
         self.choice_function, self.bin_function = choice_function, bin_function
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
+        self.init_responce_func = initialize_response_
+        self.init_choice_func = initialize_selection_logits_
 
         self.response = nn.Parameter(torch.zeros([num_trees, tree_dim, 2 ** depth]), requires_grad=True)
         initialize_response_(self.response)
@@ -150,14 +152,26 @@ class ODST(ModuleWithInit):
         # ^--[batch_size, num_trees, depth]
 
         threshold_logits = (feature_values - self.feature_thresholds) * torch.exp(-self.log_temperatures)
+        #threshold_logits = (feature_values ) * torch.exp(-self.log_temperatures) - self.feature_thresholds
 
         threshold_logits = torch.stack([-threshold_logits, threshold_logits], dim=-1)
         # ^--[batch_size, num_trees, depth, 2]
 
         #RESPONSE_WEIGHTS 1)choice at each level of OTree 2) 3)c1*c2*c3*c4*c5 for each [leaf,tree,sample]
-        bins = self.bin_function(threshold_logits)
+        #bins = self.bin_function(threshold_logits)
+        bin_func = "05_01"
+        if bin_func=="entmoid15":                   #0.68477
+            bins = entmoid15(threshold_logits)
+        elif bin_func=="05_01":                     #0.67855
+            bins = (0.5 * threshold_logits + 0.5)
+            bins = bins.clamp_(-0.5, 1.5)
+        elif bin_func == "05":                      #后继乏力(0.629)
+            bins = (0.5 * threshold_logits + 0.5)
+        elif bin_func == "":                        #后继乏力(0.630)
+            bins = threshold_logits
+
+        # ^--[batch_size, num_trees, depth, 2], approximately binary
         if True:   #too much memory
-            # ^--[batch_size, num_trees, depth, 2], approximately binary
             bin_matches = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
             # ^--[batch_size, num_trees, depth, 2 ** depth]
             response_weights = torch.prod(bin_matches, dim=-2)
@@ -202,8 +216,11 @@ class ODST(ModuleWithInit):
             self.log_temperatures.data[...] = torch.log(torch.as_tensor(temperatures) + eps)
 
     def __repr__(self):
-        return "{}(in_features={}, num_trees={}, depth={}, tree_dim={}, flatten_output={})".format(
+        return "{}(F={},T={},D={}, tree_dim={}, " \
+               "flatten_output={},bin_func={},init_response={},init_choice={})".format(
             self.__class__.__name__, self.feature_selection_logits.shape[0],
-            self.num_trees, self.depth, self.tree_dim, self.flatten_output
+            self.num_trees, self.depth, self.tree_dim, self.flatten_output,
+            self.bin_function.__name__,
+            self.init_responce_func.__name__,self.init_choice_func.__name__
         )
 

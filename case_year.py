@@ -14,26 +14,31 @@ if isMORT:
 import numpy as np
 import matplotlib.pyplot as plt
 import node_lib
+import quantum_forest
 import pandas as pd
 import pickle
 import torch, torch.nn as nn
 import torch.nn.functional as F
 import lightgbm as lgb
 import random
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+dataset = "YEAR"
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+visual=None
 experiment_name = 'year_node_shallow'
-experiment_name = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment_name, *time.gmtime()[:5])
+visual = quantum_forest.Visdom_Visualizer(env_title=experiment_name)
+if visual is None:
+    experiment_name = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment_name, *time.gmtime()[:5])
 print("experiment:", experiment_name)
 
-def LoadData(data_name="YEAR"):
-    pkl_path = f'./data/{data_name}.pickle'
+def LoadData( ):
+    pkl_path = f'./data/{dataset}.pickle'
     if os.path.isfile(pkl_path):
         print("====== LoadData@{} ......".format(pkl_path))
         with open(pkl_path, "rb") as fp:
             data = pickle.load(fp)
     else:
-        data = node_lib.Dataset(data_name, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
+        data = node_lib.Dataset(dataset, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
         #data = node_lib.Dataset("HIGGS",data_path="F:/Datasets/",random_state=1337, quantile_transform=True, quantile_noise=1e-3)
         in_features = data.X_train.shape[1]
         mu, std = data.y_train.mean(), data.y_train.std()
@@ -95,8 +100,9 @@ def GBDT_test(data):
         #model.booster_.save_model('geo_test_.model')
 
 def NODE_test(data,feat_info=None):
-    depth,batch_size,nTree=5,1024 ,256         #0.6355-0.6485(choice_reuse)
-    depth,batch_size,nTree=5,256 ,2048
+    depth,batch_size,nTree=5,1024 ,256          #0.6355-0.6485(choice_reuse)
+    depth, batch_size, nTree = 5, 256, 2048          #0.619
+    #depth, batch_size, nTree = 7, 256, 512             #区别不大，而且有显存泄漏
     print(f"======  NODE_test depth={depth},batch={batch_size},nTree={nTree}\n")
     in_features = data.X_train.shape[1]
     model = nn.Sequential(
@@ -124,7 +130,7 @@ def NODE_test(data,feat_info=None):
         model = nn.DataParallel(model)
 
     from qhoptim.pyt import QHAdam
-    optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998) }
+    optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':0.002 }
     trainer = node_lib.Trainer(
         model=model, loss_function=F.mse_loss,
         experiment_name=experiment_name,
@@ -165,17 +171,21 @@ def NODE_test(data,feat_info=None):
             trainer.load_checkpoint()  # last
             trainer.remove_old_temp_checkpoints()
 
-            clear_output(True)
-            plt.figure(figsize=[18, 6])
-            plt.subplot(1, 2, 1)
-            plt.plot(loss_history)
-            plt.title('Loss')
-            plt.grid()
-            plt.subplot(1, 2, 2)
-            plt.plot(mse_history)
-            plt.title('MSE')
-            plt.grid()
-            plt.show()
+            if visual is None:
+                clear_output(True)
+                plt.figure(figsize=[18, 6])
+                plt.subplot(1, 2, 1)
+                plt.plot(loss_history)
+                plt.title('Loss')
+                plt.grid()
+                plt.subplot(1, 2, 2)
+                plt.plot(mse_history)
+                plt.title('MSE')
+                plt.grid()
+                plt.show()
+            else:
+                visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{experiment_name}", loss=mse,yLabel="Accuracy")
+
             print(f"loss_{trainer.step}\t{metrics['loss']:.5f}\tVal MSE:{mse:.5f}" )
         if trainer.step > best_step_mse + early_stopping_rounds:
             print('BREAK. There is no improvment for {} steps'.format(early_stopping_rounds))
@@ -196,7 +206,7 @@ if __name__ == "__main__":
     random.seed(random_state)
     if True:
         feat_info = pd.read_pickle("./results/year_feat_.pickle")
-        feat_info = None
+        #feat_info = None
         NODE_test(data,feat_info)
     else:
         GBDT_test(data)
