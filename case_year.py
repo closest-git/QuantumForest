@@ -21,24 +21,33 @@ import torch, torch.nn as nn
 import torch.nn.functional as F
 import lightgbm as lgb
 import random
+from sklearn.model_selection import StratifiedKFold, KFold, RepeatedKFold
 
 dataset = "YEAR"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 visual=None
-experiment_name = 'year_node_shallow'
-visual = quantum_forest.Visdom_Visualizer(env_title=experiment_name)
-if visual is None:
-    experiment_name = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment_name, *time.gmtime()[:5])
-print("experiment:", experiment_name)
+
+def InitExperiment(name,fold_n):
+    experiment_name = f'{dataset}_{name}_{fold_n}'   #'year_node_shallow'
+    #experiment_name = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment_name, *time.gmtime()[:5])
+    visual = quantum_forest.Visdom_Visualizer(env_title=experiment_name)
+    print("experiment:", experiment_name)
+    log_path=f"logs/{experiment_name}"
+    if os.path.exists(log_path):        #so strange!!!
+        import shutil
+        print(f'experiment {experiment_name} already exists, DELETE it!!!')
+        shutil.rmtree(log_path)
+    return experiment_name,visual
+
 
 def LoadData( ):
     pkl_path = f'./data/{dataset}.pickle'
-    if os.path.isfile(pkl_path):
+    if False and os.path.isfile(pkl_path):
         print("====== LoadData@{} ......".format(pkl_path))
         with open(pkl_path, "rb") as fp:
             data = pickle.load(fp)
     else:
-        data = node_lib.Dataset(dataset, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
+        data = quantum_forest.Dataset(dataset, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
         #data = node_lib.Dataset("HIGGS",data_path="F:/Datasets/",random_state=1337, quantile_transform=True, quantile_noise=1e-3)
         in_features = data.X_train.shape[1]
         mu, std = data.y_train.mean(), data.y_train.std()
@@ -55,7 +64,7 @@ def plot_importance(model,nMax=30):
     plt.title("Featurertances")
     plt.show()
 
-def GBDT_test(data):
+def GBDT_test(data,fold_n):
     model_type = "mort" if isMORT else "lgb"
     nFeatures = data.X_train.shape[1]
     some_rows = 10000
@@ -77,7 +86,7 @@ def GBDT_test(data):
         X_train = np.asfortranarray(X_train)
         X_valid = np.asfortranarray(X_valid)
     #X_train, X_valid = pd.DataFrame(X_train), pd.DataFrame(X_valid)
-    print(f"GBDT_test\ttrain={X_train.shape} valid={X_valid.shape} test={X_test.shape}")
+    print(f"GBDT_test\ttrain={X_train.shape} valid={X_valid.shape}")
     #print(f"X_train=\n{X_train.head()}\n{X_train.tail()}")
     if model_type == 'mort':
         params['verbose'] = 667
@@ -88,18 +97,21 @@ def GBDT_test(data):
     if model_type == 'lgb':
         #params['verbose'] = 0   #667
         model = lgb.LGBMRegressor(**params)
-        model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=200)
+        model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=1000)
         plot_importance(model)
         fold_importance = pd.DataFrame()
         fold_importance["importance"] = model.feature_importances_
         fold_importance["feature"] = [i for i in range(nFeatures)]
-        fold_importance["fold"] = 0
-        fold_importance.to_pickle("./results/year_feat_.pickle")
+        fold_importance["fold"] = fold_n
+        fold_importance.to_pickle(f"./results/year_feat_{fold_n}.pickle")
+        print('best_score', model.best_score_)
+        acc_train,acc_eval=model.best_score_['training'][metric], model.best_score_['valid_1'][metric]
+    return acc_eval,acc_train
 
 
         #model.booster_.save_model('geo_test_.model')
 
-def NODE_test(data,feat_info=None):
+def NODE_test(data,fold_n,visual=None,feat_info=None):
     depth,batch_size,nTree=5,1024 ,256          #0.6355-0.6485(choice_reuse)
     depth, batch_size, nTree = 5, 256, 2048          #0.619
     #depth, batch_size, nTree = 7, 256, 512             #区别不大，而且有显存泄漏
@@ -145,7 +157,7 @@ def NODE_test(data,feat_info=None):
     loss_history, mse_history = [], []
     best_mse = float('inf')
     best_step_mse = 0
-    early_stopping_rounds = 5000
+    early_stopping_rounds = 3000
     report_frequency = 1000
 
     print(f"trainer.model={trainer.model}\ntrainer.opt={trainer.opt}")
@@ -156,6 +168,8 @@ def NODE_test(data,feat_info=None):
         loss_history.append(metrics['loss'])
         print(f"\r============ {trainer.step}\tLoss={metrics['loss']:.5f}\ttime={time.time()-t0:.6f}",end="")
         if trainer.step % report_frequency == 0:
+            if torch.cuda.is_available():  # need lots of time!!!
+                torch.cuda.empty_cache()
             trainer.save_checkpoint()
             trainer.average_checkpoints(out_tag='avg')
             trainer.load_checkpoint(tag='avg')
@@ -187,27 +201,39 @@ def NODE_test(data,feat_info=None):
                 visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{experiment_name}", loss=mse,yLabel="Accuracy")
 
             print(f"loss_{trainer.step}\t{metrics['loss']:.5f}\tVal MSE:{mse:.5f}" )
+        if trainer.step>20000:
+            break
         if trainer.step > best_step_mse + early_stopping_rounds:
             print('BREAK. There is no improvment for {} steps'.format(early_stopping_rounds))
             print("Best step: ", best_step_mse)
             print("Best Val MSE: %0.5f" % (best_mse))
             break
-
-    trainer.load_checkpoint(tag='best_mse')
-    mse = trainer.evaluate_mse(data.X_test, data.y_test, device=device)
-    print('Best step: ', trainer.step)
-    print("Test MSE: %0.5f" % (mse))
+    if data.X_test is not None:
+        trainer.load_checkpoint(tag='best_mse')
+        mse = trainer.evaluate_mse(data.X_test, data.y_test, device=device)
+        print('Best step: ', trainer.step)
+        print("Test MSE: %0.5f" % (mse))
+    return best_mse,mse
 
 if __name__ == "__main__":
-    data = LoadData()
+    #data = LoadData()
+    data = quantum_forest.Dataset(dataset, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
     random_state = 42
     np.random.seed(random_state)
     torch.manual_seed(random_state)
     random.seed(random_state)
-    if True:
-        feat_info = pd.read_pickle("./results/year_feat_.pickle")
-        #feat_info = None
-        NODE_test(data,feat_info)
-    else:
-        GBDT_test(data)
-        input("...")
+    n_fold = 5
+    folds = KFold(n_splits=n_fold, shuffle=True)
+    model="DeTREE"      #"GBDT"
+    for fold_n, (train_index, valid_index) in enumerate(folds.split(data.X)):
+        experiment_name,visual = InitExperiment(f'{model}_shallow_randF',fold_n)
+        t0 = time.time()
+        data.onFold(fold_n,train_index, valid_index)
+        if model=="DeTREE":
+            #feat_info = pd.read_pickle("./results/year_feat_.pickle")
+            feat_info = None
+            accu,_ = NODE_test(data,fold_n,visual,feat_info)
+        else:
+            accu,_ = GBDT_test(data,fold_n)
+        print(f"====== Fold_{fold_n}\tACCURACY={accu:.5f},time={time.time()-t0:.2f} ====== \n\n")
+

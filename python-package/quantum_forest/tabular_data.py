@@ -7,16 +7,80 @@ import shutil
 import torch
 import random
 import warnings
+import gc
 
 from sklearn.model_selection import train_test_split
-
-from .utils import download
 from sklearn.datasets import load_svmlight_file
 from sklearn.preprocessing import QuantileTransformer
 from category_encoders import LeaveOneOutEncoder
 
+def download(url, filename, delete_if_interrupted=True, chunk_size=4096):
+    """ saves file from url to filename with a fancy progressbar """
+    try:
+        with open(filename, "wb") as f:
+            print("Downloading {} > {}".format(url, filename))
+            response = requests.get(url, stream=True)
+            total_length = response.headers.get('content-length')
+
+            if total_length is None:  # no content length header
+                f.write(response.content)
+            else:
+                total_length = int(total_length)
+                with tqdm(total=total_length) as progressbar:
+                    for data in response.iter_content(chunk_size=chunk_size):
+                        if data:  # filter-out keep-alive chunks
+                            f.write(data)
+                            progressbar.update(len(data))
+    except Exception as e:
+        if delete_if_interrupted:
+            print("Removing incomplete download {}.".format(filename))
+            os.remove(filename)
+        raise e
+    return filename
 
 class Dataset:
+    def quantile_transform(self, random_state, X_samp, listX, normalize=False,distri='normal', noise=0):
+        if normalize:
+            mean = np.mean(self.X_train, axis=0)
+            std = np.std(self.X_train, axis=0)
+            self.X_train = (self.X_train - mean) / std
+            self.X_valid = (self.X_valid - mean) / std
+            self.X_test = (self.X_test - mean) / std
+
+        quantile_train = np.copy(X_samp)
+        if noise:
+            stds = np.std(quantile_train, axis=0, keepdims=True)
+            noise_std = noise / np.maximum(stds, noise)
+            quantile_train += noise_std * np.random.randn(*quantile_train.shape)
+
+        qt = QuantileTransformer(random_state=random_state, output_distribution=distri).fit(quantile_train)
+        for i,X_ in enumerate(listX):
+            if X_ is None:
+                continue
+            listX[i] = qt.transform(X_)
+        return listX,qt
+
+    def onFold(self,fold,train_index, valid_index):
+        print(f"====== Dataset::Fold_{fold}\tvalid_index={valid_index},train_index={train_index}......")
+        self.X_train,self.y_train = self.X[train_index],self.Y[train_index]
+        self.X_valid, self.y_valid = self.X[valid_index], self.Y[valid_index]
+        self.X_test,self.y_test = None,None
+        listX, _ = self.quantile_transform(self.random_state, self.X_train,
+                [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
+        self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]
+        gc.collect()
+
+        mu, std = self.y_train.mean(), self.y_train.std()
+        normalize = lambda x: ((x - mu) / std).astype(np.float32)
+        self.y_train, self.y_valid = map(normalize, [self.y_train, self.y_valid])
+        if self.y_test is not None:
+            self.y_test = map(normalize, self.y_test)
+        print("mean = %.5f, std = %.5f" % (mu, std))
+        if False:
+            with open(pkl_path, "wb") as fp:
+                pickle.dump(data, fp)
+
+        return
 
     def __init__(self, dataset, random_state, data_path='./data', normalize=False,
                  quantile_transform=False, output_distribution='normal', quantile_noise=0, **kwargs):
@@ -40,9 +104,10 @@ class Dataset:
         np.random.seed(random_state)
         torch.manual_seed(random_state)
         random.seed(random_state)
-
+        self.random_state = random_state
+        self.quantile_noise = quantile_noise
         if dataset in DATASETS:
-            data_dict = DATASETS[dataset](os.path.join(data_path, dataset), **kwargs)
+            self.X,self.Y = DATASETS[dataset](os.path.join(data_path, dataset), **kwargs)
         else:
             assert all(key in kwargs for key in ('X_train', 'y_train', 'X_valid', 'y_valid', 'X_test', 'y_test')), \
                 "Unknown dataset. Provide X_train, y_train, X_valid, y_valid, X_test and y_test params"
@@ -50,37 +115,29 @@ class Dataset:
 
         self.data_path = data_path
         self.dataset = dataset
+        if False:
+            self.X_train = data_dict['X_train']
+            self.y_train = data_dict['y_train']
+            self.X_valid = data_dict['X_valid']
+            self.y_valid = data_dict['y_valid']
+            self.X_test = data_dict['X_test']
+            self.y_test = data_dict['y_test']
 
-        self.X_train = data_dict['X_train']
-        self.y_train = data_dict['y_train']
-        self.X_valid = data_dict['X_valid']
-        self.y_valid = data_dict['y_valid']
-        self.X_test = data_dict['X_test']
-        self.y_test = data_dict['y_test']
+            if all(query in data_dict.keys() for query in ('query_train', 'query_valid', 'query_test')):
+                self.query_train = data_dict['query_train']
+                self.query_valid = data_dict['query_valid']
+                self.query_test = data_dict['query_test']
 
-        if all(query in data_dict.keys() for query in ('query_train', 'query_valid', 'query_test')):
-            self.query_train = data_dict['query_train']
-            self.query_valid = data_dict['query_valid']
-            self.query_test = data_dict['query_test']
+            if normalize:
+                mean = np.mean(self.X_train, axis=0)
+                std = np.std(self.X_train, axis=0)
+                self.X_train = (self.X_train - mean) / std
+                self.X_valid = (self.X_valid - mean) / std
+                self.X_test = (self.X_test - mean) / std
 
-        if normalize:
-            mean = np.mean(self.X_train, axis=0)
-            std = np.std(self.X_train, axis=0)
-            self.X_train = (self.X_train - mean) / std
-            self.X_valid = (self.X_valid - mean) / std
-            self.X_test = (self.X_test - mean) / std
-
-        if quantile_transform:
-            quantile_train = np.copy(self.X_train)
-            if quantile_noise:
-                stds = np.std(quantile_train, axis=0, keepdims=True)
-                noise_std = quantile_noise / np.maximum(stds, quantile_noise)
-                quantile_train += noise_std * np.random.randn(*quantile_train.shape)
-
-            qt = QuantileTransformer(random_state=random_state, output_distribution=output_distribution).fit(quantile_train)
-            self.X_train = qt.transform(self.X_train)
-            self.X_valid = qt.transform(self.X_valid)
-            self.X_test = qt.transform(self.X_test)
+            if quantile_transform:
+                listX,_ = self.quantile_transform(random_state, self.X_train, [self.X_train,self.X_valid,self.X_test], distri='normal', noise=quantile_noise)
+                self.X_train,self.X_valid,self.X_test = listX[0],listX[1],listX[2]
 
     def to_csv(self, path=None):
         if path == None:
@@ -251,37 +308,40 @@ def fetch_YEAR(path, train_size=None, valid_size=None, test_size=51630):
     n_features = 91
     types = {i: (np.float32 if i != 0 else np.int) for i in range(n_features)}
     data = pd.read_csv(data_path, header=None, dtype=types)
-    data_train, data_test = data.iloc[:-test_size], data.iloc[-test_size:]
-
-    X_train, y_train = data_train.iloc[:, 1:].values, data_train.iloc[:, 0].values
-    X_test, y_test = data_test.iloc[:, 1:].values, data_test.iloc[:, 0].values
-
-    if all(sizes is None for sizes in (train_size, valid_size)):
-        train_idx_path = os.path.join(path, 'stratified_train_idx.txt')
-        valid_idx_path = os.path.join(path, 'stratified_valid_idx.txt')
-        if not all(os.path.exists(fname) for fname in (train_idx_path, valid_idx_path)):
-            download("https://www.dropbox.com/s/00u6cnj9mthvzj1/stratified_train_idx.txt?dl=1", train_idx_path)
-            download("https://www.dropbox.com/s/420uhjvjab1bt7k/stratified_valid_idx.txt?dl=1", valid_idx_path)
-        train_idx = pd.read_csv(train_idx_path, header=None)[0].values
-        valid_idx = pd.read_csv(valid_idx_path, header=None)[0].values
+    if True:
+        return data.iloc[:, 1:].values, data.iloc[:, 0].values
     else:
-        assert train_size, "please provide either train_size or none of sizes"
-        if valid_size is None:
-            valid_size = len(X_train) - train_size
-            assert valid_size > 0
-        if train_size + valid_size > len(X_train):
-            warnings.warn('train_size + valid_size = {} exceeds dataset size: {}.'.format(
-                train_size + valid_size, len(X_train)), Warning)
+        data_train, data_test = data.iloc[:-test_size], data.iloc[-test_size:]
 
-        shuffled_indices = np.random.permutation(np.arange(len(X_train)))
-        train_idx = shuffled_indices[:train_size]
-        valid_idx = shuffled_indices[train_size: train_size + valid_size]
-    print(f"fetch_YEAR\ttrain={X_train[train_idx].shape} valid={X_train[valid_idx].shape} test={X_test.shape}")
-    return dict(
-        X_train=X_train[train_idx], y_train=y_train[train_idx],
-        X_valid=X_train[valid_idx], y_valid=y_train[valid_idx],
-        X_test=X_test, y_test=y_test,
-    )
+        X_train, y_train = data_train.iloc[:, 1:].values, data_train.iloc[:, 0].values
+        X_test, y_test = data_test.iloc[:, 1:].values, data_test.iloc[:, 0].values
+
+        if all(sizes is None for sizes in (train_size, valid_size)):
+            train_idx_path = os.path.join(path, 'stratified_train_idx.txt')
+            valid_idx_path = os.path.join(path, 'stratified_valid_idx.txt')
+            if not all(os.path.exists(fname) for fname in (train_idx_path, valid_idx_path)):
+                download("https://www.dropbox.com/s/00u6cnj9mthvzj1/stratified_train_idx.txt?dl=1", train_idx_path)
+                download("https://www.dropbox.com/s/420uhjvjab1bt7k/stratified_valid_idx.txt?dl=1", valid_idx_path)
+            train_idx = pd.read_csv(train_idx_path, header=None)[0].values
+            valid_idx = pd.read_csv(valid_idx_path, header=None)[0].values
+        else:
+            assert train_size, "please provide either train_size or none of sizes"
+            if valid_size is None:
+                valid_size = len(X_train) - train_size
+                assert valid_size > 0
+            if train_size + valid_size > len(X_train):
+                warnings.warn('train_size + valid_size = {} exceeds dataset size: {}.'.format(
+                    train_size + valid_size, len(X_train)), Warning)
+
+            shuffled_indices = np.random.permutation(np.arange(len(X_train)))
+            train_idx = shuffled_indices[:train_size]
+            valid_idx = shuffled_indices[train_size: train_size + valid_size]
+        print(f"fetch_YEAR\ttrain={X_train[train_idx].shape} valid={X_train[valid_idx].shape} test={X_test.shape}")
+        return dict(
+            X_train=X_train[train_idx], y_train=y_train[train_idx],
+            X_valid=X_train[valid_idx], y_valid=y_train[valid_idx],
+            X_test=X_test, y_test=y_test,
+        )
 
 
 def fetch_HIGGS(path, train_size=None, valid_size=None, test_size=5 * 10 ** 5):
