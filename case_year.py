@@ -23,21 +23,24 @@ import lightgbm as lgb
 import random
 from sklearn.model_selection import StratifiedKFold, KFold, RepeatedKFold
 
-dataset = "YEAR"
+#You should set the path of each dataset!!!
+data_root = "F:/Datasets/"
+#dataset = "YEAR"
+dataset = "YAHOO"
+torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-visual=None
 
-def InitExperiment(name,fold_n):
-    experiment_name = f'{dataset}_{name}_{fold_n}'   #'year_node_shallow'
-    #experiment_name = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment_name, *time.gmtime()[:5])
-    visual = quantum_forest.Visdom_Visualizer(env_title=experiment_name)
-    print("experiment:", experiment_name)
-    log_path=f"logs/{experiment_name}"
+def InitExperiment(config,fold_n):
+    config.experiment = f'{config.data_set}_{config.model_info()}_{fold_n}'   #'year_node_shallow'
+    #experiment = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment, *time.gmtime()[:5])
+    visual = None#quantum_forest.Visdom_Visualizer(env_title=config.experiment)
+    print("experiment:", config.experiment)
+    log_path=f"logs/{config.experiment}"
     if os.path.exists(log_path):        #so strange!!!
         import shutil
-        print(f'experiment {experiment_name} already exists, DELETE it!!!')
+        print(f'experiment {config.experiment} already exists, DELETE it!!!')
         shutil.rmtree(log_path)
-    return experiment_name,visual
+    return config,visual
 
 
 def LoadData( ):
@@ -98,6 +101,7 @@ def GBDT_test(data,fold_n):
         #params['verbose'] = 0   #667
         model = lgb.LGBMRegressor(**params)
         model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=1000)
+        pred_val = model.predict(data.X_test)
         plot_importance(model)
         fold_importance = pd.DataFrame()
         fold_importance["importance"] = model.feature_importances_
@@ -105,36 +109,36 @@ def GBDT_test(data,fold_n):
         fold_importance["fold"] = fold_n
         fold_importance.to_pickle(f"./results/year_feat_{fold_n}.pickle")
         print('best_score', model.best_score_)
-        acc_train,acc_eval=model.best_score_['training'][metric], model.best_score_['valid_1'][metric]
-    return acc_eval,acc_train
+        acc_train,acc_=model.best_score_['training'][metric], model.best_score_['valid_1'][metric]
+    if data.X_test is not None:
+        pred_val = model.predict(data.X_test)
+        acc_ = ((data.y_test - pred_val) ** 2).mean()
+        print(f'====== Best step: test={data.X_test.shape} ACCU@Test={acc_:.5f}')
+    return acc_,acc_train
 
+def dump_model_params(model):
+    nzParams = 0
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            nzParams += param.nelement()
+            print(f"\t{name}={param.nelement()}")
+    print(f"========All parameters={nzParams}")
+    return nzParams
 
-        #model.booster_.save_model('geo_test_.model')
-
-def NODE_test(data,fold_n,visual=None,feat_info=None):
-    depth,batch_size,nTree=5,1024 ,256          #0.6355-0.6485(choice_reuse)
-    depth, batch_size, nTree = 5, 256, 2048          #0.619
-    #depth, batch_size, nTree = 7, 256, 512             #区别不大，而且有显存泄漏
-    print(f"======  NODE_test depth={depth},batch={batch_size},nTree={nTree}\n")
+def NODE_test(data,fold_n,config,visual=None,feat_info=None):
+    #print(f"======  NODE_test depth={depth},batch={batch_size},nTree={nTree}\n")
+    print(f"======  NODE_test {config}\n")
     in_features = data.X_train.shape[1]
     model = nn.Sequential(
-        node_lib.DenseBlock(in_features, nTree, num_layers=1, tree_dim=3, depth=depth, flatten_output=False,
+        node_lib.DenseBlock(in_features, config.nTree, num_layers=1, tree_dim=3, depth=config.depth, flatten_output=False,
                        choice_function=node_lib.entmax15, bin_function=node_lib.entmoid15,feat_info=feat_info),
         node_lib.Lambda(lambda x: x[..., 0].mean(dim=-1)),  # average first channels of every tree
     ).to(device)
 
-    def dump_model_params(model):
-        nzParams = 0
-        for name, param in model.named_parameters():
-            if param.requires_grad:
-                nzParams += param.nelement()
-                print(f"\t{name}={param.nelement()}")
-        print(f"========All parameters={nzParams}")
-        return nzParams
     print(model)
     dump_model_params(model)
 
-    if False:       # trigger data-aware init,作用不明显
+    if True:       # trigger data-aware init,作用不明显
         with torch.no_grad():
             res = model(torch.as_tensor(data.X_train[:1000], device=device))
 
@@ -145,7 +149,7 @@ def NODE_test(data,fold_n,visual=None,feat_info=None):
     optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':0.002 }
     trainer = node_lib.Trainer(
         model=model, loss_function=F.mse_loss,
-        experiment_name=experiment_name,
+        experiment_name=config.experiment,
         warm_start=False,
         Optimizer=QHAdam,
         optimizer_params=optimizer_params,
@@ -162,7 +166,7 @@ def NODE_test(data,fold_n,visual=None,feat_info=None):
 
     print(f"trainer.model={trainer.model}\ntrainer.opt={trainer.opt}")
     t0=time.time()
-    for batch in node_lib.iterate_minibatches(data.X_train, data.y_train, batch_size=batch_size,
+    for batch in node_lib.iterate_minibatches(data.X_train, data.y_train, batch_size=config.batch_size,
                                          shuffle=True, epochs=float('inf')):
         metrics = trainer.train_on_batch(*batch, device=device)
         loss_history.append(metrics['loss'])
@@ -198,10 +202,10 @@ def NODE_test(data,fold_n,visual=None,feat_info=None):
                 plt.grid()
                 plt.show()
             else:
-                visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{experiment_name}", loss=mse,yLabel="Accuracy")
+                visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
 
             print(f"loss_{trainer.step}\t{metrics['loss']:.5f}\tVal MSE:{mse:.5f}" )
-        if trainer.step>20000:
+        if trainer.step>50000:
             break
         if trainer.step > best_step_mse + early_stopping_rounds:
             print('BREAK. There is no improvment for {} steps'.format(early_stopping_rounds))
@@ -209,31 +213,49 @@ def NODE_test(data,fold_n,visual=None,feat_info=None):
             print("Best Val MSE: %0.5f" % (best_mse))
             break
     if data.X_test is not None:
+        if torch.cuda.is_available():  # need lots of time!!!
+            torch.cuda.empty_cache()
         trainer.load_checkpoint(tag='best_mse')
-        mse = trainer.evaluate_mse(data.X_test, data.y_test, device=device)
-        print('Best step: ', trainer.step)
-        print("Test MSE: %0.5f" % (mse))
+        mse = trainer.evaluate_mse(data.X_test, data.y_test, device=device, batch_size=2048)
+        print(f'====== Best step: {trainer.step} ACCU@Test={mse:.5f}' )
+        best_mse = mse
     return best_mse,mse
+
+def Fold_learning(fold_n,data,config,visual):
+    t0 = time.time()
+    if config.model=="QForest":
+        if config.feat_info == "importance":
+            feat_info = pd.read_pickle(f"./results/{dataset}_feat_.pickle")
+        else:
+            feat_info = None
+        accu,_ = NODE_test(data,fold_n,config,visual,feat_info)
+    else:
+        accu,_ = GBDT_test(data,fold_n)
+    print(f"====== Fold_{fold_n}\tACCURACY={accu:.5f},time={time.time() - t0:.2f} ====== \n\n")
+    return
 
 if __name__ == "__main__":
     #data = LoadData()
-    data = quantum_forest.Dataset(dataset, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
+    data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
+    config = quantum_forest.QForest_config(dataset,0.002,feat_info="importance")
     random_state = 42
-    np.random.seed(random_state)
-    torch.manual_seed(random_state)
-    random.seed(random_state)
-    n_fold = 5
-    folds = KFold(n_splits=n_fold, shuffle=True)
-    model="DeTREE"      #"GBDT"
-    for fold_n, (train_index, valid_index) in enumerate(folds.split(data.X)):
-        experiment_name,visual = InitExperiment(f'{model}_shallow_randF',fold_n)
-        t0 = time.time()
-        data.onFold(fold_n,train_index, valid_index)
-        if model=="DeTREE":
-            #feat_info = pd.read_pickle("./results/year_feat_.pickle")
-            feat_info = None
-            accu,_ = NODE_test(data,fold_n,visual,feat_info)
-        else:
-            accu,_ = GBDT_test(data,fold_n)
-        print(f"====== Fold_{fold_n}\tACCURACY={accu:.5f},time={time.time()-t0:.2f} ====== \n\n")
+    quantum_forest.OnInitInstance(random_state)
+    #np.random.seed(random_state)
+    #orch.manual_seed(random_state)
+    #random.seed(random_state)
+
+    config.model="QForest"      #"QForest"            "GBDT"
+    if dataset=="YAHOO":
+        config,visual = InitExperiment(config, 0)
+        data.onFold(0,pkl_path=f"{data_root}YAHOO/FOLD__.pickle")
+        Fold_learning(0,data, config,visual)
+    else:
+        n_fold = 5
+        folds = KFold(n_splits=n_fold, shuffle=True)
+        for fold_n, (train_index, valid_index) in enumerate(folds.split(data.X)):
+            config,visual = InitExperiment(config,fold_n)
+            data.onFold(fold_n,train_index, valid_index)
+            Fold_learning(fold_n,data,config,visual)
+
+
 

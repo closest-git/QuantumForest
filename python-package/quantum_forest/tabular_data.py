@@ -8,6 +8,7 @@ import torch
 import random
 import warnings
 import gc
+import pickle
 
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_svmlight_file
@@ -38,7 +39,11 @@ def download(url, filename, delete_if_interrupted=True, chunk_size=4096):
         raise e
     return filename
 
-class Dataset:
+'''
+    partition each dataset into five parts[S1, S2, S3, S4,S5] for five-fold cross validation.
+    In each fold, three parts for training, one part for validation, and the remaining part for test
+'''
+class TabularDataset:
     def quantile_transform(self, random_state, X_samp, listX, normalize=False,distri='normal', noise=0):
         if normalize:
             mean = np.mean(self.X_train, axis=0)
@@ -60,26 +65,38 @@ class Dataset:
             listX[i] = qt.transform(X_)
         return listX,qt
 
-    def onFold(self,fold,train_index, valid_index):
-        print(f"====== Dataset::Fold_{fold}\tvalid_index={valid_index},train_index={train_index}......")
-        self.X_train,self.y_train = self.X[train_index],self.Y[train_index]
-        self.X_valid, self.y_valid = self.X[valid_index], self.Y[valid_index]
-        self.X_test,self.y_test = None,None
-        listX, _ = self.quantile_transform(self.random_state, self.X_train,
-                [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
-        self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]
-        gc.collect()
+    def onFold(self,fold,pkl_path=None, train_index=None, valid_index=None, test_index=None):
+        if pkl_path is not None and os.path.isfile(pkl_path):
+            print("====== onFold@{} ......".format(pkl_path))
+            with open(pkl_path, "rb") as fp:
+                [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std] = pickle.load(fp)
+            print("mean = %.5f, std = %.5f" % (mu, std))
+            gc.collect()
+        else:
+            if train_index is not None:
+                print(f"====== TabularDataset::Fold_{fold}\tvalid_index={valid_index},train_index={train_index}......")
+                self.X_train,self.y_train = self.X[train_index],self.Y[train_index]
+                self.X_valid, self.y_valid = self.X[valid_index], self.Y[valid_index]
+                self.X_test,self.y_test = None,None
+            else:
+                print(f"====== TabularDataset::Fold_{fold}......")
+            listX, _ = self.quantile_transform(self.random_state, self.X_train,
+                    [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
+            self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]
+            gc.collect()
 
-        mu, std = self.y_train.mean(), self.y_train.std()
-        normalize = lambda x: ((x - mu) / std).astype(np.float32)
-        self.y_train, self.y_valid = map(normalize, [self.y_train, self.y_valid])
-        if self.y_test is not None:
-            self.y_test = map(normalize, self.y_test)
-        print("mean = %.5f, std = %.5f" % (mu, std))
-        if False:
-            with open(pkl_path, "wb") as fp:
-                pickle.dump(data, fp)
-
+            mu, std = self.y_train.mean(), self.y_train.std()
+            normalize = lambda x: ((x - mu) / std).astype(np.float32)
+            self.y_train, self.y_valid,self.y_test = map(normalize, [self.y_train, self.y_valid,self.y_test])
+            #if self.y_test is not None:              self.y_test = map(normalize, [self.y_test])
+            print("mean = %.5f, std = %.5f" % (mu, std))
+            if False:
+                with open(pkl_path, "wb") as fp:
+                    pickle.dump(data, fp)
+            if pkl_path is not None:
+                with open(pkl_path, "wb") as fp:
+                    pickle.dump([self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std], fp)
+            gc.collect()
         return
 
     def __init__(self, dataset, random_state, data_path='./data', normalize=False,
@@ -107,7 +124,7 @@ class Dataset:
         self.random_state = random_state
         self.quantile_noise = quantile_noise
         if dataset in DATASETS:
-            self.X,self.Y = DATASETS[dataset](os.path.join(data_path, dataset), **kwargs)
+            data_dict = DATASETS[dataset](os.path.join(data_path, dataset), **kwargs)
         else:
             assert all(key in kwargs for key in ('X_train', 'y_train', 'X_valid', 'y_valid', 'X_test', 'y_test')), \
                 "Unknown dataset. Provide X_train, y_train, X_valid, y_valid, X_test and y_test params"
@@ -115,14 +132,16 @@ class Dataset:
 
         self.data_path = data_path
         self.dataset = dataset
-        if False:
+        if 'X_train' in data_dict:
             self.X_train = data_dict['X_train']
             self.y_train = data_dict['y_train']
             self.X_valid = data_dict['X_valid']
             self.y_valid = data_dict['y_valid']
             self.X_test = data_dict['X_test']
             self.y_test = data_dict['y_test']
-
+        else:
+            self.X, self.Y = data_dict['X'],data_dict['Y']
+        if False:
             if all(query in data_dict.keys() for query in ('query_train', 'query_valid', 'query_test')):
                 self.query_train = data_dict['query_train']
                 self.query_valid = data_dict['query_valid']
@@ -309,7 +328,8 @@ def fetch_YEAR(path, train_size=None, valid_size=None, test_size=51630):
     types = {i: (np.float32 if i != 0 else np.int) for i in range(n_features)}
     data = pd.read_csv(data_path, header=None, dtype=types)
     if True:
-        return data.iloc[:, 1:].values, data.iloc[:, 0].values
+        data_dict={'X':data.iloc[:, 1:].values, 'Y':data.iloc[:, 0].values}
+        return data_dict
     else:
         data_train, data_test = data.iloc[:-test_size], data.iloc[-test_size:]
 
@@ -425,43 +445,53 @@ def fetch_MICROSOFT(path):
 
 
 def fetch_YAHOO(path):
-    train_path = os.path.join(path, 'yahoo_train.tsv')
-    valid_path = os.path.join(path, 'yahoo_valid.tsv')
-    test_path = os.path.join(path, 'yahoo_test.tsv')
-    if not all(os.path.exists(fname) for fname in (train_path, valid_path, test_path)):
-        os.makedirs(path, exist_ok=True)
-        train_archive_path = os.path.join(path, 'yahoo_train.tsv.gz')
-        valid_archive_path = os.path.join(path, 'yahoo_valid.tsv.gz')
-        test_archive_path = os.path.join(path, 'yahoo_test.tsv.gz')
-        if not all(os.path.exists(fname) for fname in (train_archive_path, valid_archive_path, test_archive_path)):
-            download("https://www.dropbox.com/s/7rq3ki5vtxm6gzx/yahoo_set_1_train.gz?dl=1", train_archive_path)
-            download("https://www.dropbox.com/s/3ai8rxm1v0l5sd1/yahoo_set_1_validation.gz?dl=1", valid_archive_path)
-            download("https://www.dropbox.com/s/3d7tdfb1an0b6i4/yahoo_set_1_test.gz?dl=1", test_archive_path)
+    pkl_path = f'{path}/yahoo_rank_set_1_.pickle'
+    if os.path.isfile(pkl_path):
+        print("====== fetch_YAHOO@{} ......".format(pkl_path))
+        with open(pkl_path, "rb") as fp:
+            data_dict = pickle.load(fp)
+    else:
+        train_path = os.path.join(path, 'yahoo_train.tsv')
+        valid_path = os.path.join(path, 'yahoo_valid.tsv')
+        test_path = os.path.join(path, 'yahoo_test.tsv')
+        if not all(os.path.exists(fname) for fname in (train_path, valid_path, test_path)):
+            os.makedirs(path, exist_ok=True)
+            train_archive_path = os.path.join(path, 'yahoo_train.tsv.gz')
+            valid_archive_path = os.path.join(path, 'yahoo_valid.tsv.gz')
+            test_archive_path = os.path.join(path, 'yahoo_test.tsv.gz')
+            if not all(os.path.exists(fname) for fname in (train_archive_path, valid_archive_path, test_archive_path)):
+                download("https://www.dropbox.com/s/7rq3ki5vtxm6gzx/yahoo_set_1_train.gz?dl=1", train_archive_path)
+                download("https://www.dropbox.com/s/3ai8rxm1v0l5sd1/yahoo_set_1_validation.gz?dl=1", valid_archive_path)
+                download("https://www.dropbox.com/s/3d7tdfb1an0b6i4/yahoo_set_1_test.gz?dl=1", test_archive_path)
 
-        for file_name, archive_name in zip((train_path, valid_path, test_path), (train_archive_path, valid_archive_path, test_archive_path)):
-            with gzip.open(archive_name, 'rb') as f_in:
-                with open(file_name, 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
+            for file_name, archive_name in zip((train_path, valid_path, test_path), (train_archive_path, valid_archive_path, test_archive_path)):
+                with gzip.open(archive_name, 'rb') as f_in:
+                    with open(file_name, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
 
-        for fname in (train_path, valid_path, test_path):
-            raw = open(fname).read().replace('\\t', '\t')
-            with open(fname, 'w') as f:
-                f.write(raw)
+            for fname in (train_path, valid_path, test_path):
+                raw = open(fname).read().replace('\\t', '\t')
+                with open(fname, 'w') as f:
+                    f.write(raw)
 
-    data_train = pd.read_csv(train_path, header=None, skiprows=1, sep='\t')
-    data_valid = pd.read_csv(valid_path, header=None, skiprows=1, sep='\t')
-    data_test = pd.read_csv(test_path, header=None, skiprows=1, sep='\t')
+        data_train = pd.read_csv(train_path, header=None, skiprows=1, sep='\t')
+        data_valid = pd.read_csv(valid_path, header=None, skiprows=1, sep='\t')
+        data_test = pd.read_csv(test_path, header=None, skiprows=1, sep='\t')
 
-    X_train, y_train, query_train = data_train.iloc[:, 2:].values, data_train.iloc[:, 0].values, data_train.iloc[:, 1].values
-    X_valid, y_valid, query_valid = data_valid.iloc[:, 2:].values, data_valid.iloc[:, 0].values, data_valid.iloc[:, 1].values
-    X_test, y_test, query_test = data_test.iloc[:, 2:].values, data_test.iloc[:, 0].values, data_test.iloc[:, 1].values
+        X_train, y_train, query_train = data_train.iloc[:, 2:].values, data_train.iloc[:, 0].values, data_train.iloc[:, 1].values
+        X_valid, y_valid, query_valid = data_valid.iloc[:, 2:].values, data_valid.iloc[:, 0].values, data_valid.iloc[:, 1].values
+        X_test, y_test, query_test = data_test.iloc[:, 2:].values, data_test.iloc[:, 0].values, data_test.iloc[:, 1].values
 
-    return dict(
-        X_train=X_train.astype(np.float32), y_train=y_train, query_train=query_train,
-        X_valid=X_valid.astype(np.float32), y_valid=y_valid, query_valid=query_valid,
-        X_test=X_test.astype(np.float32), y_test=y_test, query_test=query_test,
-    )
-
+        data_dict = dict(
+            X_train=X_train.astype(np.float32), y_train=y_train, query_train=query_train,
+            X_valid=X_valid.astype(np.float32), y_valid=y_valid, query_valid=query_valid,
+            X_test=X_test.astype(np.float32), y_test=y_test, query_test=query_test,
+        )
+        #====== fetch_YAHOO:	X_train=(473134, 699)	X_valid=(71083, 699)	X_test=(165660, 699)
+        print(f"====== fetch_YAHOO:\tX_train={X_train.shape}\tX_valid={X_valid.shape}\tX_test={X_test.shape}")
+        with open(pkl_path, "wb") as fp:
+            pickle.dump(data_dict,fp)
+    return data_dict
 
 def fetch_CLICK(path, valid_size=100_000, validation_seed=None):
     # based on: https://www.kaggle.com/slamnz/primer-airlines-delay

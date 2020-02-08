@@ -31,7 +31,9 @@ class ODST(ModuleWithInit):
             assert importance.shape[0]==in_features
             fmax,fmin=torch.max(importance),torch.min(importance)
             weight = importance/fmax
-            #weight = weight*weight*weight
+            #weight[weight<1.0e-4] = 1.0e-4
+            weight = weight*weight*weight
+            print(f"====== feat weight={weight}")
             for i in range(self.nChoice):
                 #print(feat_val[:,i])
                 feat_val[:,i] = feat_val[:,i]*weight
@@ -164,6 +166,7 @@ class ODST(ModuleWithInit):
             bins = entmoid15(threshold_logits)
         elif bin_func=="05_01":                     #0.67855
             bins = (0.5 * threshold_logits + 0.5)
+            #bins = bins.clamp_(0, 1)
             bins = bins.clamp_(-0.5, 1.5)
         elif bin_func == "05":                      #后继乏力(0.629)
             bins = (0.5 * threshold_logits + 0.5)
