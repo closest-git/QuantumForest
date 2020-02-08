@@ -106,6 +106,14 @@ def pytorch_env( ):
     print("===== torch_init device={}".format(device))
     return device
 
+def check_numpy(x):
+    """ Makes sure x is a numpy array """
+    if isinstance(x, torch.Tensor):
+        x = x.detach().cpu().numpy()
+    x = np.asarray(x)
+    assert isinstance(x, np.ndarray)
+    return x
+
 def OnInitInstance(seed=0):
     seed_everything(seed)
     gpu_device = pytorch_env()

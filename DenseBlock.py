@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .odst import ODST
-
+import node_lib
+import quantum_forest
+from node_lib.odst import ODST
 
 class DenseBlock(nn.Sequential):
     def __init__(self, input_dim, layer_dim, num_layers, tree_dim=1, max_features=None,
