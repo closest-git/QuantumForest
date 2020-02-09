@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import random
 import math
-from .sparse_max import sparsemax, sparsemoid, entmoid15
+from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15
 from .some_utils import check_numpy
 from warnings import warn
 
@@ -16,14 +16,14 @@ class DeTree(nn.Module):
         self.choice_reuse = False
         self.in_features, self.num_trees, self.depth=in_features, num_trees, depth
         self.nChoice = self.num_trees*self.depth
+        self.nSingle = self.in_features
         if self.choice_reuse:
             self.nChoice = self.nChoice//10
             print(f"======  init_choice_weight nChoice={self.nChoice}")
             self.choice_map = [random.randrange(0, self.nChoice) for _ in range(self.num_trees*self.depth)] #random.sample(range(self.nSeed), self.nChoice)
             assert len(self.choice_map)==self.num_trees*self.depth
-        self.feature_selection_logits = nn.Parameter(
-            torch.zeros([self.in_features, self.nChoice]), requires_grad=True
-        )
+        #self.feat_attention = nn.Parameter(torch.zeros([self.in_features, self.nChoice]), requires_grad=True)
+
         feat_val = torch.zeros([self.in_features, self.nChoice])
         init_func(feat_val)
         if feat_info is not None and 'importance' in feat_info.columns:
@@ -38,23 +38,27 @@ class DeTree(nn.Module):
                 #print(feat_val[:,i])
                 feat_val[:,i] = feat_val[:,i]*weight
                 #print(feat_val[:, i])
-            self.feature_selection_logits = nn.Parameter(
+            self.feat_attention = nn.Parameter(
                 feat_val, requires_grad=True
             )
             print(f"====== init_choice_weight from feat_info={feat_info.columns}")
             pass
-
-        self.feature_selection_logits = nn.Parameter(
-            feat_val, requires_grad=True
-        )
-        #init_func(self.feature_selection_logits)
-        print(f"====== init_choice_weight f={init_func.__name__}")
+        if False:   #some_singles
+            some_singles = [random.randrange(0, self.nChoice) for _ in range(self.nChoice//2)]
+            for i in range(self.nChoice):  #self.in_features*40
+                feat_val[:, i] = 0
+                pos = i%self.in_features
+                feat_val[pos, i] = 1
+            print(f"===== !!! init_choice_weight: SET {self.nChoice}-featrues to 1 !!!")
+        self.feat_attention = nn.Parameter( feat_val, requires_grad=True )
+        #init_func(self.feat_attention)
+        print(f"====== init_feat_attention f={init_func.__name__}")
 
     #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
     def get_choice_weight(self):
-        feature_logits = self.feature_selection_logits
+        feature_logits = self.feat_attention
         choice_weight = self.choice_function(feature_logits, dim=0)
-        #feature_selectors = self.choice_function(self.feature_selection_logits, dim=0)
+        #feature_selectors = self.choice_function(self.feat_attention, dim=0)
         # ^--[in_features, num_trees, depth]
         if self.choice_reuse:
             choice_weight = choice_weight[:, self.choice_map]
@@ -104,7 +108,9 @@ class DeTree(nn.Module):
         super().__init__()
         self.isInitFromData = False
         self.depth, self.num_trees, self.tree_dim, self.flatten_output = depth, num_trees, tree_dim, flatten_output
-        self.choice_function, self.bin_function = choice_function, bin_function
+        #self.choice_function, self.bin_function = choice_function, bin_function
+        self.choice_function = entmax15
+        self.bin_func = "05_01"
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
         self.init_responce_func = initialize_response_
         self.init_choice_func = initialize_selection_logits_
@@ -114,15 +120,16 @@ class DeTree(nn.Module):
 
         self.init_choice_weight(initialize_selection_logits_,in_features, num_trees, depth,feat_info)
         '''
-        self.feature_selection_logits = nn.Parameter(torch.zeros([in_features, num_trees, depth]), requires_grad=True
+        self.feat_attention = nn.Parameter(torch.zeros([in_features, num_trees, depth]), requires_grad=True
         )
-        initialize_selection_logits_(self.feature_selection_logits)
+        initialize_selection_logits_(self.feat_attention)
         '''
 
 
         self.feature_thresholds = nn.Parameter(
             torch.full([num_trees, depth], float('nan'), dtype=torch.float32), requires_grad=True
         )  # nan values will be initialized on first batch (data-aware init)
+        self.tree_weight = nn.Parameter( torch.Tensor(num_trees).uniform_(), requires_grad=True)
 
         self.log_temperatures = nn.Parameter(
             torch.full([num_trees, depth], float('nan'), dtype=torch.float32), requires_grad=True
@@ -181,6 +188,7 @@ class DeTree(nn.Module):
 
         response = torch.einsum('bnd,ncd->bnc', response_weights, self.response)
         # ^-- [batch_size, num_trees, tree_dim]
+        #for i in range(self.num_trees):       response[:,i,:] = response[:,i,:]*self.tree_weight[i]
 
         return response.flatten(1, 2) if self.flatten_output else response
 
@@ -193,7 +201,7 @@ class DeTree(nn.Module):
                  "You can do so manually before training. Use with torch.no_grad() for memory efficiency.")
         with torch.no_grad():
             feature_selectors = self.get_choice_weight()
-            #feature_selectors = self.choice_function(self.feature_selection_logits, dim=0)
+            #feature_selectors = self.choice_function(self.feat_attention, dim=0)
             # ^--[in_features, num_trees, depth]
 
             feature_values = torch.einsum('bi,ind->bnd', input, feature_selectors)
@@ -218,9 +226,9 @@ class DeTree(nn.Module):
     def __repr__(self):
         return "{}(F={},T={},D={}, tree_dim={}, " \
                "flatten_output={},bin_func={},init_response={},init_choice={})".format(
-            self.__class__.__name__, self.feature_selection_logits.shape[0],
+            self.__class__.__name__, self.feat_attention.shape[0],
             self.num_trees, self.depth, self.tree_dim, self.flatten_output,
-            self.bin_function.__name__,
+            self.bin_func,
             self.init_responce_func.__name__,self.init_choice_func.__name__
         )
 

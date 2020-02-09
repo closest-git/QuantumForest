@@ -26,8 +26,8 @@ from DenseBlock import *
 
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
-#dataset = "YEAR"
-dataset = "YAHOO"
+dataset = "YEAR"
+#dataset = "YAHOO"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -219,8 +219,9 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         if torch.cuda.is_available():  # need lots of time!!!
             torch.cuda.empty_cache()
         trainer.load_checkpoint(tag='best_mse')
+        t0=time.time()
         mse = trainer.evaluate_mse(data.X_test, data.y_test, device=device, batch_size=2048)
-        print(f'====== Best step: {trainer.step} ACCU@Test={mse:.5f}' )
+        print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} time={time.time()-t0:.2f}' )
         best_mse = mse
     return best_mse,mse
 
@@ -253,11 +254,18 @@ if __name__ == "__main__":
         data.onFold(0,pkl_path=f"{data_root}YAHOO/FOLD__.pickle")
         Fold_learning(0,data, config,visual)
     else:
-        n_fold = 5
-        folds = KFold(n_splits=n_fold, shuffle=True)
+        nFold = 5
+        folds = KFold(n_splits=nFold, shuffle=True)
+        index_sets=[]
         for fold_n, (train_index, valid_index) in enumerate(folds.split(data.X)):
-            config,visual = InitExperiment(config,fold_n)
-            data.onFold(fold_n,train_index, valid_index)
+            index_sets.append(valid_index)
+        for fold_n in range(len(index_sets)):
+            config, visual = InitExperiment(config, fold_n)
+            valid_index=index_sets[(fold_n+1)%nFold]
+            train_index=np.concatenate([index_sets[(fold_n+2)%nFold],index_sets[(fold_n+3)%nFold],index_sets[(fold_n+4)%nFold]])
+            print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
+
+            data.onFold(fold_n,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{data_root}{dataset}/FOLD_{fold_n}.pickle")
             Fold_learning(fold_n,data,config,visual)
 
 
