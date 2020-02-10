@@ -22,7 +22,7 @@ import torch.nn.functional as F
 import lightgbm as lgb
 import random
 from sklearn.model_selection import StratifiedKFold, KFold, RepeatedKFold
-from DenseBlock import *
+from DecisionBlock import *
 
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
@@ -130,11 +130,10 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     #print(f"======  NODE_test depth={depth},batch={batch_size},nTree={nTree}\n")
     print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} \n======  config={config}\n")
     in_features = data.X_train.shape[1]
-    #tree = node_lib.ODST
-    tree = quantum_forest.DeTree
+    #config.tree_module = node_lib.ODST
+    config.tree_module = quantum_forest.DeTree
     model = nn.Sequential(
-        DenseBlock(in_features, config,num_layers=1, depth=config.depth,Module=tree,
-            flatten_output=False,choice_function=node_lib.entmax15, bin_function=node_lib.entmoid15,feat_info=feat_info),
+        DecisionBlock(in_features, config, flatten_output=False,feat_info=feat_info),
         node_lib.Lambda(lambda x: x[..., 0].mean(dim=-1)),  # average first channels of every tree
     ).to(device)
 

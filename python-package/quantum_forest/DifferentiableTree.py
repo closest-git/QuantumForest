@@ -82,7 +82,7 @@ class DeTree(nn.Module):
         feature_values = torch.einsum('bi,ind->bnd', input, choice_weight)
         return feature_values
 
-    def __init__(self, in_features, num_trees,config, depth=6, flatten_output=True,
+    def __init__(self, in_features, num_trees,config, flatten_output=True,
                  choice_function=sparsemax, bin_function=sparsemoid,feat_info=None,
                  initialize_response_=nn.init.normal_, initialize_selection_logits_=nn.init.uniform_,
                  threshold_init_beta=1.0, threshold_init_cutoff=1.0,
@@ -119,8 +119,11 @@ class DeTree(nn.Module):
         """
         super().__init__()
         tree_dim = config.tree_dim
+        depth = config.depth
+
         self.isInitFromData = False
-        self.depth, self.num_trees, self.tree_dim, self.flatten_output = depth, num_trees, tree_dim, flatten_output
+        self.depth, self.num_trees, self.tree_dim, self.flatten_output = \
+            depth, num_trees, tree_dim, config.flatten_output
         #self.choice_function, self.bin_function = choice_function, bin_function
         self.choice_function = entmax15
         self.bin_func = "05_01"
