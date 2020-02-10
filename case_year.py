@@ -26,7 +26,7 @@ from DenseBlock import *
 
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
-dataset = "YEAR"
+dataset = "MICROSOFT"
 #dataset = "YAHOO"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -108,7 +108,7 @@ def GBDT_test(data,fold_n):
         fold_importance["importance"] = model.feature_importances_
         fold_importance["feature"] = [i for i in range(nFeatures)]
         fold_importance["fold"] = fold_n
-        fold_importance.to_pickle(f"./results/year_feat_{fold_n}.pickle")
+        fold_importance.to_pickle(f"./results/{dataset}_feat_{fold_n}.pickle")
         print('best_score', model.best_score_)
         acc_train,acc_=model.best_score_['training'][metric], model.best_score_['valid_1'][metric]
     if data.X_test is not None:
@@ -133,7 +133,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     #tree = node_lib.ODST
     tree = quantum_forest.DeTree
     model = nn.Sequential(
-        DenseBlock(in_features, config.nTree, num_layers=1, tree_dim=3, depth=config.depth,Module=tree,
+        DenseBlock(in_features, config,num_layers=1, depth=config.depth,Module=tree,
             flatten_output=False,choice_function=node_lib.entmax15, bin_function=node_lib.entmoid15,feat_info=feat_info),
         node_lib.Lambda(lambda x: x[..., 0].mean(dim=-1)),  # average first channels of every tree
     ).to(device)
@@ -173,7 +173,8 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                                          shuffle=True, epochs=float('inf')):
         metrics = trainer.train_on_batch(*batch, device=device)
         loss_history.append(metrics['loss'])
-        print(f"\r============ {trainer.step}\tLoss={metrics['loss']:.5f}\ttime={time.time()-t0:.6f}",end="")
+        if trainer.step%10==0:
+            print(f"\r============ {trainer.step}\t{metrics['loss']:.5f}\ttime={time.time()-t0:.2f}\t",end="")
         if trainer.step % report_frequency == 0:
             if torch.cuda.is_available():  # need lots of time!!!
                 torch.cuda.empty_cache()
@@ -235,13 +236,13 @@ def Fold_learning(fold_n,data,config,visual):
         accu,_ = NODE_test(data,fold_n,config,visual,feat_info)
     else:
         accu,_ = GBDT_test(data,fold_n)
-    print(f"====== Fold_{fold_n}\tACCURACY={accu:.5f},time={time.time() - t0:.2f} ====== \n\n")
+    print(f"\n======\n====== Fold_{fold_n}\tACCURACY={accu:.5f},time={time.time() - t0:.2f} ====== \n======\n")
     return
 
 if __name__ == "__main__":
     #data = LoadData()
     data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
-    config = quantum_forest.QForest_config(dataset,0.002,feat_info="importance")
+    config = quantum_forest.QForest_config(dataset,0.002,feat_info="importance")   #,feat_info="importance"
     random_state = 42
     quantum_forest.OnInitInstance(random_state)
     #np.random.seed(random_state)
@@ -249,9 +250,9 @@ if __name__ == "__main__":
     #random.seed(random_state)
 
     config.model="QForest"      #"QForest"            "GBDT"
-    if dataset=="YAHOO":
+    if dataset=="YAHOO" or dataset=="MICROSOFT":
         config,visual = InitExperiment(config, 0)
-        data.onFold(0,pkl_path=f"{data_root}YAHOO/FOLD__.pickle")
+        data.onFold(0,pkl_path=f"{data_root}{dataset}/FOLD__.pickle")
         Fold_learning(0,data, config,visual)
     else:
         nFold = 5

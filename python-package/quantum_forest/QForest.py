@@ -14,13 +14,17 @@ class QForest_config:
         self.rDrop = 0
         self.custom_legend = None
         self.feat_info = feat_info
+        self.no_attention = False
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
             self.depth, self.batch_size, self.nTree = 5, 256, 2048  # 0.619
             # depth, batch_size, nTree = 7, 256, 512             #区别不大，而且有显存泄漏
         elif data_set=="YAHOO":
-            self.depth, self.batch_size, self.nTree = 5, 256, 2048  # 0.619
+            self.depth, self.batch_size, self.nTree, self.tree_dim = 5, 256, 2048,5
+            #tree_dim=  5-0.5910;  3-0.5913
+        elif data_set=="MICROSOFT":
+            self.depth, self.batch_size, self.nTree, self.tree_dim = 5, 256, 2048,3
 
     def model_info(self):
         return "QF_shallow"
@@ -33,8 +37,8 @@ class QForest_config:
         return title
 
     def __repr__(self):
-        main_str = f"{self.data_set}_ depth={self.depth} batch={self.batch_size} nTree={self.nTree} " \
-            f"choice=[{self.choice_func}] feat_info={self.feat_info}"
+        main_str = f"{self.data_set}_ depth={self.depth} batch={self.batch_size} nTree={self.nTree} tree_dim={self.tree_dim} " \
+            f"NO_ATTENTION={self.no_attention} choice=[{self.choice_func}] feat_info={self.feat_info}"
         #if self.isFC:       main_str+=" [FC]"
         if self.custom_legend is not None:
             main_str = main_str + f"_{self.custom_legend}"

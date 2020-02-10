@@ -66,8 +66,9 @@ class TabularDataset:
         return listX,qt
 
     def onFold(self,fold,pkl_path=None, train_index=None, valid_index=None, test_index=None):
+        if pkl_path is not None:
+            print("====== onFold pkl_path={} ......".format(pkl_path))
         if pkl_path is not None and os.path.isfile(pkl_path):
-            print("====== onFold@{} ......".format(pkl_path))
             with open(pkl_path, "rb") as fp:
                 [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std] = pickle.load(fp)
             print("mean = %.5f, std = %.5f" % (mu, std))
@@ -444,10 +445,10 @@ def fetch_MICROSOFT(path):
             download("https://www.dropbox.com/s/izpty5feug57kqn/msrank_train.tsv?dl=1", train_path)
             download("https://www.dropbox.com/s/tlsmm9a6krv0215/msrank_test.tsv?dl=1", test_path)
 
-            for fname in (train_path, test_path):
-                raw = open(fname).read().replace('\\t', '\t')
-                with open(fname, 'w') as f:
-                    f.write(raw)
+        for fname in (train_path, test_path):
+            raw = open(fname).read().replace('\\t', '\t')
+            with open(fname, 'w') as f:
+                f.write(raw)
 
         data_train = pd.read_csv(train_path, header=None, skiprows=1, sep='\t')
         data_test = pd.read_csv(test_path, header=None, skiprows=1, sep='\t')
@@ -570,6 +571,5 @@ DATASETS = {
 
 
 if __name__ == "__main__":
-    #data = TabularDataset("MICROSOFT", data_path="F:\Datasets", random_state=1337, quantile_transform=True,quantile_noise=1e-3)
-    data = TabularDataset("HIGGS", data_path="F:\Datasets", random_state=1337, quantile_transform=True,
-                          quantile_noise=1e-3)
+    data = TabularDataset("MICROSOFT", data_path="F:\Datasets", random_state=1337, quantile_transform=True,quantile_noise=1e-3)
+    #data = TabularDataset("HIGGS", data_path="F:\Datasets", random_state=1337, quantile_transform=True,quantile_noise=1e-3)
