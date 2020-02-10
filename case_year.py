@@ -26,8 +26,8 @@ from DenseBlock import *
 
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
-dataset = "MICROSOFT"
-#dataset = "YAHOO"
+#dataset = "MICROSOFT"
+dataset = "YAHOO"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -128,7 +128,7 @@ def dump_model_params(model):
 
 def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     #print(f"======  NODE_test depth={depth},batch={batch_size},nTree={nTree}\n")
-    print(f"======  NODE_test {config}\n")
+    print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} \n======  config={config}\n")
     in_features = data.X_train.shape[1]
     #tree = node_lib.ODST
     tree = quantum_forest.DeTree
@@ -145,8 +145,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         with torch.no_grad():
             res = model(torch.as_tensor(data.X_train[:1000], device=device))
 
-    if torch.cuda.device_count() > 1:
-        model = nn.DataParallel(model)
+    #if torch.cuda.device_count() > 1:        model = nn.DataParallel(model)
 
     from qhoptim.pyt import QHAdam
     optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':0.002 }
@@ -226,11 +225,17 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         best_mse = mse
     return best_mse,mse
 
+
 def Fold_learning(fold_n,data,config,visual):
+
     t0 = time.time()
     if config.model=="QForest":
         if config.feat_info == "importance":
             feat_info = pd.read_pickle(f"./results/{dataset}_feat_.pickle")
+            importance = torch.from_numpy(feat_info['importance'].values).float()
+            fmax, fmin = torch.max(importance), torch.min(importance)
+            weight = importance / fmax
+            feat_info = data.OnFeatInfo(feat_info,weight)
         else:
             feat_info = None
         accu,_ = NODE_test(data,fold_n,config,visual,feat_info)
@@ -245,9 +250,6 @@ if __name__ == "__main__":
     config = quantum_forest.QForest_config(dataset,0.002,feat_info="importance")   #,feat_info="importance"
     random_state = 42
     quantum_forest.OnInitInstance(random_state)
-    #np.random.seed(random_state)
-    #orch.manual_seed(random_state)
-    #random.seed(random_state)
 
     config.model="QForest"      #"QForest"            "GBDT"
     if dataset=="YAHOO" or dataset=="MICROSOFT":

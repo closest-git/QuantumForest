@@ -65,6 +65,25 @@ class TabularDataset:
             listX[i] = qt.transform(X_)
         return listX,qt
 
+    def OnFeatInfo(self,feat_info,weight_1):
+        assert weight_1 is not None
+        nFeat = weight_1.shape[0]
+        picks = [i for i in range(nFeat) if weight_1[i] <0.9]     #非常奇怪，难以理解
+        picks = list(range(nFeat))
+        nPick = len(picks)
+        if nPick<nFeat:
+            feat_info = feat_info.iloc[picks, :]
+            if hasattr(self,'X_train'):
+                assert nFeat == self.X_train.shape[1]
+                self.X_train = self.X_train[:, picks]
+                self.X_valid = self.X_valid[:, picks]
+                if self.X_test is not None:
+                    self.X_test = self.X_test[:, picks]
+            else:
+                self.X = self.X[:, picks]
+        return feat_info
+
+
     def onFold(self,fold,pkl_path=None, train_index=None, valid_index=None, test_index=None):
         if pkl_path is not None:
             print("====== onFold pkl_path={} ......".format(pkl_path))

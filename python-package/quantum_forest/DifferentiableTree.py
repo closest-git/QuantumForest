@@ -32,7 +32,8 @@ class DeTree(nn.Module):
             weight = importance / fmax
             # weight[weight<1.0e-4] = 1.0e-4
             weight = weight * weight * weight
-            print(f"====== feat weight={weight}")
+            nShow=min(self.in_features/2,20)
+            print(f"====== feat weight={weight[0:nShow]}...{weight[self.in_features-nShow:self.in_features-1]} fmax={fmax}, fmin={fmin}")
 
         if True:#weight is None:
             self.feat_map = [random.randrange(0, self.in_features) for _ in range(self.nChoice)]
@@ -214,9 +215,8 @@ class DeTree(nn.Module):
         # data-aware initializer
         assert len(input.shape) == 2
         if input.shape[0] < 1000:
-            warn("Data-aware initialization is performed on less than 1000 data points. This may cause instability."
-                 "To avoid potential problems, run this model on a data batch with at least 1000 data samples."
-                 "You can do so manually before training. Use with torch.no_grad() for memory efficiency.")
+            warn("Data-aware initialization is performed on less than 1000 data points. This may cause instability.")
+
         with torch.no_grad():
             if self.no_attention:
                 feature_values = input[:, self.feat_map]                #torch.index_select(input.flatten(), 0, self.feat_select)
