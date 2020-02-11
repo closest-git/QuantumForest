@@ -4,9 +4,13 @@ import torch.nn.functional as F
 import node_lib
 import quantum_forest
 from node_lib.odst import ODST
+import copy
+import random
 
 class DecisionBlock(nn.Sequential):
     def __init__(self, input_dim, config, flatten_output=True, feat_info=None, **kwargs):
+        super(DecisionBlock, self).__init__()
+        self.config = config
         layers = []
         tree_dim=config.tree_dim
         num_trees = config.nTree
@@ -22,6 +26,7 @@ class DecisionBlock(nn.Sequential):
         self.input_dropout = config.input_dropout
 
     def forward(self, x):
+        nSamp = x.shape[0]
         initial_features = x.shape[-1]
         for layer in self:
             layer_inp = x
@@ -37,22 +42,52 @@ class DecisionBlock(nn.Sequential):
         outputs = x[..., initial_features:]
         if not self.flatten_output:
             outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.tree_dim)
+        if self.config.max_out:
+            outputs = torch.max(outputs, -1).values
+        else:
+            outputs = outputs[..., 0]
+
+        #outputs = torch.mean(outputs, -1)      确实不如maxout
+        #outputs = outputs.mean(dim=-1)
         return outputs
 
-class SubBlock(DecisionBlock):
+class MultiBlock(nn.Module):
     def __init__(self, input_dim, config_0, flatten_output=True, feat_info=None, **kwargs):
+        super(MultiBlock, self).__init__()
+        self.in_features = input_dim
         self.nSub = 10
-        self.blocks=[]
+        self.nEachTree = config_0.nTree //10
+        self.blocks=nn.ModuleList()
+        self.isSparseFeat=False
+        if self.isSparseFeat:
+            self.nEachFeat = input_dim//2
+        else:
+            self.nEachFeat = input_dim
+        self.feat_maps=[]
         for i in range(self.nSub):
-            config = config_0.clone()
-            config.nTree = config.nTree //self.nSub
-            block = DecisionBlock(input_dim, config, flatten_output=flatten_output,feat_info=feat_info)
+            config = copy.deepcopy(config_0)
+            config.nTree = self.nEachTree
+            nFeat = self.nEachFeat
+            if self.isSparseFeat:
+                map = random.choices(population = list(range(self.in_features)),k = nFeat)
+                self.feat_maps.append(map)
+                sub_info = feat_info.iloc[map, :]
+            else:
+                sub_info = feat_info
+            block = DecisionBlock(nFeat, config, flatten_output=flatten_output,feat_info=sub_info)
             self.blocks.append(block)
-        pass
 
-    def forward(self, x):
+        print(f"====== MultiBlock nSub={self.nSub} nEachTree={self.nEachTree} nEachFeat={self.nEachFeat}")
+
+    def forward(self, x00):
         outputs=[]
-        for block in self.blocks:
-            x=block.forward(x)
+        for i,block in enumerate(self.blocks):
+            if self.isSparseFeat:
+                map = self.feat_maps[i]
+                x0=x00[:,map]
+            else:
+                x0 = x00
+            x=block.forward(x0)
             outputs.append(x)
-        return outputs
+        output = torch.cat(outputs,dim=1)
+        return output

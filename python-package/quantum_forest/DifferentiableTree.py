@@ -68,9 +68,7 @@ class DeTree(nn.Module):
 
     #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
     def get_choice_weight(self,input):
-        #feature_logits = self.feat_attention
-        choice_weight = self.choice_function(self.feat_attention, dim=0)
-        #feature_selectors = self.choice_function(self.feat_attention, dim=0)
+        choice_weight = self.choice_function(self.feat_attention, dim=0)        #choice_function=entmax15
         # ^--[in_features, num_trees, depth]
         if self.choice_reuse:
             choice_weight = choice_weight[:, self.choice_map]

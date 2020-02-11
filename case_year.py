@@ -20,9 +20,7 @@ import pickle
 import torch, torch.nn as nn
 import torch.nn.functional as F
 import lightgbm as lgb
-import random
-from sklearn.model_selection import StratifiedKFold, KFold, RepeatedKFold
-from DecisionBlock import *
+from sklearn.model_selection import KFold
 
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
@@ -132,10 +130,15 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     in_features = data.X_train.shape[1]
     #config.tree_module = node_lib.ODST
     config.tree_module = quantum_forest.DeTree
-    model = nn.Sequential(
-        DecisionBlock(in_features, config, flatten_output=False,feat_info=feat_info),
-        node_lib.Lambda(lambda x: x[..., 0].mean(dim=-1)),  # average first channels of every tree
-    ).to(device)
+    if True:
+        model = quantum_forest.QForest_Net(in_features,config,feat_info=feat_info)\
+            .to(device)
+    else:
+        model = nn.Sequential(
+            DecisionBlock(in_features, config, flatten_output=False,feat_info=feat_info),
+            #MultiBlock(in_features, config, flatten_output=False,feat_info=feat_info),
+            #node_lib.Lambda(lambda x: x[..., 0].mean(dim=-1)),  # average first channels of every tree
+        ).to(device)
 
     print(model)
     dump_model_params(model)
@@ -157,7 +160,6 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         verbose=True,
         n_last_checkpoints=5
     )
-    from tqdm import tqdm
     from IPython.display import clear_output
     loss_history, mse_history = [], []
     best_mse = float('inf')

@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="BookmarkManager">
-    <bookmark url="file://$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py" line="224" />
+    <bookmark url="file://$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py" line="222" />
+    <bookmark url="file://$PROJECT_DIR$/case_year.py" line="138" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="188480de-ef34-4020-b9d2-027a24366bac" name="Default Changelist" comment="OnFeatInfo:::Data,DeTree">
+    <list default="true" id="188480de-ef34-4020-b9d2-027a24366bac" name="Default Changelist" comment="1)QForest_Net 2)config.max_out">
+      <change afterPath="$PROJECT_DIR$/python-package/quantum_forest/DistriPool.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/python-package/quantum_forest/QForest_Net.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DenseBlock.py" beforeDir="false" afterPath="$PROJECT_DIR$/DecisionBlock.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DecisionBlock.py" beforeDir="false" afterPath="$PROJECT_DIR$/python-package/quantum_forest/DecisionBlock.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/case_year.py" beforeDir="false" afterPath="$PROJECT_DIR$/case_year.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py" beforeDir="false" afterPath="$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/python-package/quantum_forest/QForest.py" beforeDir="false" afterPath="$PROJECT_DIR$/python-package/quantum_forest/QForest.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/python-package/quantum_forest/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/python-package/quantum_forest/__init__.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -22,11 +26,53 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="436">
-              <caret line="84" column="45" selection-start-line="84" selection-start-column="36" selection-end-line="84" selection-end-column="45" />
+            <state relative-caret-position="78">
+              <caret line="70" column="97" selection-start-line="70" selection-start-column="97" selection-end-line="70" selection-end-column="97" />
+              <folding>
+                <element signature="e#0#12#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/QForest_Net.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="76">
+              <caret line="4" column="43" selection-start-line="4" selection-start-column="43" selection-end-line="4" selection-end-column="43" />
+              <folding>
+                <element signature="e#0#21#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://D:/Anaconda3/Lib/site-packages/torch/functional.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="103">
+              <caret line="210" selection-start-line="210" selection-end-line="210" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://D:/Anaconda3/Lib/site-packages/torch/nn/modules/module.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="128">
+              <caret line="564" selection-start-line="564" selection-end-line="564" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/DecisionBlock.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="90">
+              <caret line="16" column="35" selection-start-line="16" selection-start-column="35" selection-end-line="16" selection-end-column="35" />
               <folding>
                 <element signature="e#0#12#0" expanded="true" />
               </folding>
@@ -37,50 +83,29 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/QForest.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-327">
-              <caret line="2" column="17" selection-start-line="1" selection-start-column="50" selection-end-line="2" selection-end-column="17" />
+            <state relative-caret-position="260">
+              <caret line="35" column="84" selection-start-line="35" selection-start-column="84" selection-end-line="35" selection-end-column="84" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/DecisionBlock.py">
+        <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/sparse_max.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="209">
-              <caret line="38" column="64" selection-start-line="38" selection-start-column="64" selection-end-line="38" selection-end-column="64" />
+            <state relative-caret-position="152">
+              <caret line="197" column="6" selection-start-line="197" selection-start-column="6" selection-end-line="197" selection-end-column="6" />
               <folding>
-                <element signature="e#0#12#0" expanded="true" />
+                <element signature="e#0#17#0" expanded="true" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://D:/Anaconda3/Lib/site-packages/torch/nn/modules/module.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="143">
-              <caret line="493" selection-start-line="493" selection-end-line="493" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/python-package/node_lib/trainer.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="215">
-              <caret line="136" selection-start-line="136" selection-end-line="136" />
-              <folding>
-                <element signature="e#0#9#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/case_year.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="284">
-              <caret line="135" column="64" selection-start-line="135" selection-start-column="64" selection-end-line="135" selection-end-column="64" />
+            <state relative-caret-position="-788">
+              <caret line="142" column="16" selection-start-line="142" selection-start-column="16" selection-end-line="142" selection-end-column="16" />
               <folding>
                 <element signature="e#10#24#0" expanded="true" />
               </folding>
@@ -89,24 +114,8 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/tabular_data.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="79">
-              <caret line="497" column="4" selection-start-line="497" selection-start-column="4" selection-end-line="497" selection-end-column="4" />
-              <folding>
-                <element signature="e#0#9#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://D:/Anaconda3/Lib/site-packages/sklearn/utils/validation.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="10279">
-              <caret line="557" selection-start-line="557" selection-end-line="557" />
-            </state>
-          </provider>
+        <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/DistriPool.py">
+          <provider selected="true" editor-type-id="text-editor" />
         </entry>
       </file>
     </leaf>
@@ -120,9 +129,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>experiment_name</find>
-      <find>Dataset</find>
-      <find>shape</find>
       <find>device</find>
       <find>_is_initialized_tensor</find>
       <find>visual</find>
@@ -142,13 +148,16 @@
       <find>feature_values.reshape</find>
       <find>random.choice</find>
       <find>feat_info</find>
-      <find>parallel</find>
       <find>Loss=</find>
       <find>no_attention</find>
       <find>max_features</find>
       <find>DenseBlock</find>
       <find>depth</find>
       <find>flatten_output</find>
+      <find>choice</find>
+      <find>entmax15</find>
+      <find>parallel</find>
+      <find>Lambda</find>
       <find>Module</find>
     </findStrings>
     <replaceStrings>
@@ -173,14 +182,17 @@
         <option value="$PROJECT_DIR$/python-package/quantum_forest/some_utils.py" />
         <option value="$PROJECT_DIR$/python-package/quantum_forest/sparse_max.py" />
         <option value="$PROJECT_DIR$/python-package/node_lib/odst.py" />
-        <option value="$PROJECT_DIR$/python-package/quantum_forest/__init__.py" />
         <option value="$PROJECT_DIR$/python-package/node_lib/__init__.py" />
         <option value="$PROJECT_DIR$/python-package/quantum_forest/tabular_data.py" />
         <option value="$PROJECT_DIR$/DenseBlock.py" />
-        <option value="$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py" />
-        <option value="$PROJECT_DIR$/python-package/quantum_forest/QForest.py" />
+        <option value="$PROJECT_DIR$/python-package/quantum_forest/DistriPool.py" />
         <option value="$PROJECT_DIR$/DecisionBlock.py" />
+        <option value="$PROJECT_DIR$/python-package/quantum_forest/__init__.py" />
         <option value="$PROJECT_DIR$/case_year.py" />
+        <option value="$PROJECT_DIR$/python-package/quantum_forest/DecisionBlock.py" />
+        <option value="$PROJECT_DIR$/python-package/quantum_forest/QForest_Net.py" />
+        <option value="$PROJECT_DIR$/python-package/quantum_forest/QForest.py" />
+        <option value="$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py" />
       </list>
     </option>
   </component>
@@ -234,6 +246,11 @@
     <property name="nodejs_npm_path_reset_for_default_project" value="true" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="E:\QuantumForest\python-package\quantum_forest" />
+    </key>
+  </component>
   <component name="RunDashboard">
     <option name="ruleStates">
       <list>
@@ -247,6 +264,28 @@
     </option>
   </component>
   <component name="RunManager" selected="Python.case_year">
+    <configuration name="DecisionBlock" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="QuantumForest" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="E:\QuantumForest\python-package\quantum_forest\DecisionBlock.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="DifferentiableTree" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="QuantumForest" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -335,35 +374,13 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="trainer" type="PythonConfigurationType" factoryName="Python" temporary="true">
-      <module name="QuantumForest" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/python-package/node_lib" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/python-package/node_lib/trainer.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
     <recent_temporary>
       <list>
         <item itemvalue="Python.case_year" />
+        <item itemvalue="Python.DecisionBlock" />
         <item itemvalue="Python.DifferentiableTree" />
         <item itemvalue="Python.tabular_data" />
         <item itemvalue="Python.odst" />
-        <item itemvalue="Python.trainer" />
       </list>
     </recent_temporary>
   </component>
@@ -383,7 +400,7 @@
       <workItem from="1580887769167" duration="26065000" />
       <workItem from="1580973416918" duration="11956000" />
       <workItem from="1580991941872" duration="59459000" />
-      <workItem from="1581241150497" duration="24194000" />
+      <workItem from="1581241150497" duration="51686000" />
     </task>
     <task id="LOCAL-00001" summary="val=0.63">
       <created>1580800005073</created>
@@ -455,23 +472,29 @@
       <option name="project" value="LOCAL" />
       <updated>1581309365726</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="DecisionBlock">
+      <created>1581324260373</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1581324260373</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="147285000" />
+    <option name="totallyTimeSpent" value="174777000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-7" y="-7" width="1408" height="878" extended-state="6" />
-    <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.46575344" visible="true" weight="0.18222222" />
-      <window_info id="Structure" order="1" sideWeight="0.53424656" side_tool="true" visible="true" weight="0.18222222" />
+      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.39903846" visible="true" weight="0.13037036" />
+      <window_info id="Structure" order="1" sideWeight="0.60096157" side_tool="true" visible="true" weight="0.13037036" />
       <window_info id="Favorites" order="2" sideWeight="0.53222454" side_tool="true" weight="0.16296296" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
-      <window_info anchor="bottom" id="Run" order="2" visible="true" weight="0.3150134" />
-      <window_info anchor="bottom" id="Debug" order="3" weight="0.26407507" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.44235924" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.41689008" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" />
@@ -484,7 +507,7 @@
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.24962963" />
-      <window_info active="true" anchor="right" id="SciView" order="3" visible="true" weight="0.17703703" />
+      <window_info anchor="right" id="SciView" order="3" visible="true" weight="0.17555556" />
       <window_info anchor="right" id="Database" order="4" />
     </layout>
     <layout-to-restore>
@@ -525,7 +548,8 @@
     <MESSAGE value="1)DeTree:::nSingle,feat_attention 2)tabular_data" />
     <MESSAGE value="DeTree:::init_attention,no_attention" />
     <MESSAGE value="OnFeatInfo:::Data,DeTree" />
-    <option name="LAST_COMMIT_MESSAGE" value="OnFeatInfo:::Data,DeTree" />
+    <MESSAGE value="DecisionBlock" />
+    <option name="LAST_COMMIT_MESSAGE" value="DecisionBlock" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -571,9 +595,14 @@
           <option name="timeStamp" value="227" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/DecisionBlock.py</url>
-          <line>21</line>
-          <option name="timeStamp" value="247" />
+          <url>file://$PROJECT_DIR$/python-package/quantum_forest/QForest_Net.py</url>
+          <line>11</line>
+          <option name="timeStamp" value="284" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py</url>
+          <line>169</line>
+          <option name="timeStamp" value="285" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
@@ -582,7 +611,8 @@
     <SUITE FILE_PATH="coverage/QuantumForest$odst.coverage" NAME="odst Coverage Results" MODIFIED="1581081672668" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/python-package/node_lib" />
     <SUITE FILE_PATH="coverage/QuantumForest$tabular_data.coverage" NAME="tabular_data Coverage Results" MODIFIED="1581233266616" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/python-package/quantum_forest" />
     <SUITE FILE_PATH="coverage/QuantumForest$DifferentiableTree.coverage" NAME="DifferentiableTree Coverage Results" MODIFIED="1581304356348" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/python-package/quantum_forest" />
-    <SUITE FILE_PATH="coverage/QuantumForest$case_year.coverage" NAME="case_year Coverage Results" MODIFIED="1581324056025" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/QuantumForest$DecisionBlock.coverage" NAME="DecisionBlock Coverage Results" MODIFIED="1581324343926" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/QuantumForest$case_year.coverage" NAME="case_year Coverage Results" MODIFIED="1581403461450" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/QuantumForest$trainer.coverage" NAME="trainer Coverage Results" MODIFIED="1580879144073" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/python-package/node_lib" />
   </component>
   <component name="editorHistoryManager">
@@ -632,13 +662,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="82">
           <caret line="651" column="8" selection-start-line="651" selection-start-column="8" selection-end-line="651" selection-end-column="8" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://D:/Anaconda3/Lib/site-packages/torch/nn/functional.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="18791">
-          <caret line="1002" column="4" selection-start-line="1002" selection-start-column="4" selection-end-line="1002" selection-end-column="4" />
         </state>
       </provider>
     </entry>
@@ -701,27 +724,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/python-package/node_lib/nn_utils.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="249">
-          <caret line="162" column="17" selection-start-line="162" selection-start-column="17" selection-end-line="162" selection-end-column="17" />
-          <folding>
-            <element signature="e#0#17#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/python-package/node_lib/odst.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="133">
           <caret line="7" column="30" selection-start-line="7" selection-start-column="30" selection-end-line="7" selection-end-column="30" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://D:/Anaconda3/Lib/site-packages/torch/__init__.pyi">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="151">
-          <caret line="66" column="6" selection-start-line="66" selection-start-column="6" selection-end-line="66" selection-end-column="6" />
         </state>
       </provider>
     </entry>
@@ -767,27 +773,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/sparse_max.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1976">
-          <caret line="113" selection-start-line="113" selection-end-line="113" />
-          <folding>
-            <element signature="e#0#17#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://D:/Anaconda3/Lib/site-packages/sklearn/utils/validation.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="10279">
           <caret line="557" selection-start-line="557" selection-end-line="557" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://D:/Anaconda3/Lib/site-packages/torch/functional.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="103">
-          <caret line="210" selection-start-line="210" selection-end-line="210" />
         </state>
       </provider>
     </entry>
@@ -798,61 +787,136 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/__init__.py">
+    <entry file="file://D:/Anaconda3/Lib/site-packages/torch/optim/optimizer.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="19">
-          <caret line="1" selection-start-line="1" selection-end-line="1" />
+        <state relative-caret-position="57">
+          <caret line="44" selection-start-line="44" selection-end-line="44" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://D:/Anaconda3/Lib/site-packages/qhoptim/pyt/qhadam.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="114">
+          <caret line="77" selection-start-line="77" selection-end-line="77" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/tabular_data.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="79">
-          <caret line="497" column="4" selection-start-line="497" selection-start-column="4" selection-end-line="497" selection-end-column="4" />
+        <state relative-caret-position="259">
+          <caret line="73" column="23" selection-start-line="73" selection-start-column="23" selection-end-line="73" selection-end-column="23" />
           <folding>
             <element signature="e#0#9#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/_000/case_year.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="118">
+          <caret line="147" column="61" selection-start-line="147" selection-start-column="61" selection-end-line="147" selection-end-column="61" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://D:/Anaconda3/Lib/site-packages/torch/nn/functional.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-18">
+          <caret line="810" column="4" selection-start-line="810" selection-start-column="4" selection-end-line="810" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://D:/Anaconda3/Lib/site-packages/torch/nn/modules/container.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="306">
+          <caret line="91" selection-start-line="91" selection-end-line="91" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://D:/Anaconda3/Lib/site-packages/torch/__init__.pyi">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="135">
+          <caret line="442" column="8" selection-start-line="442" selection-start-column="8" selection-end-line="442" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/python-package/node_lib/trainer.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="116">
+          <caret line="130" column="28" selection-start-line="130" selection-start-column="28" selection-end-line="130" selection-end-column="28" />
+          <folding>
+            <element signature="e#0#9#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/python-package/node_lib/nn_utils.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1218">
+          <caret line="162" column="17" selection-start-line="162" selection-start-column="17" selection-end-line="162" selection-end-column="17" />
+          <folding>
+            <element signature="e#0#17#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/sparse_max.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="152">
+          <caret line="197" column="6" selection-start-line="197" selection-start-column="6" selection-end-line="197" selection-end-column="6" />
+          <folding>
+            <element signature="e#0#17#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/DistriPool.py">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="133">
+          <caret line="7" lean-forward="true" selection-start-line="7" selection-end-line="7" />
+          <folding>
+            <element signature="e#0#26#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://D:/Anaconda3/Lib/site-packages/torch/nn/modules/module.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="143">
-          <caret line="493" selection-start-line="493" selection-end-line="493" />
+        <state relative-caret-position="128">
+          <caret line="564" selection-start-line="564" selection-end-line="564" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/python-package/node_lib/trainer.py">
+    <entry file="file://D:/Anaconda3/Lib/site-packages/torch/functional.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="215">
-          <caret line="136" selection-start-line="136" selection-end-line="136" />
+        <state relative-caret-position="103">
+          <caret line="210" selection-start-line="210" selection-end-line="210" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/QForest_Net.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="76">
+          <caret line="4" column="43" selection-start-line="4" selection-start-column="43" selection-end-line="4" selection-end-column="43" />
           <folding>
-            <element signature="e#0#9#0" expanded="true" />
+            <element signature="e#0#21#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/QForest.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-327">
-          <caret line="2" column="17" selection-start-line="1" selection-start-column="50" selection-end-line="2" selection-end-column="17" />
+        <state relative-caret-position="260">
+          <caret line="35" column="84" selection-start-line="35" selection-start-column="84" selection-end-line="35" selection-end-column="84" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py">
+    <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/DecisionBlock.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="436">
-          <caret line="84" column="45" selection-start-line="84" selection-start-column="36" selection-end-line="84" selection-end-column="45" />
-          <folding>
-            <element signature="e#0#12#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/DecisionBlock.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="209">
-          <caret line="38" column="64" selection-start-line="38" selection-start-column="64" selection-end-line="38" selection-end-column="64" />
+        <state relative-caret-position="90">
+          <caret line="16" column="35" selection-start-line="16" selection-start-column="35" selection-end-line="16" selection-end-column="35" />
           <folding>
             <element signature="e#0#12#0" expanded="true" />
           </folding>
@@ -861,10 +925,20 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/case_year.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="284">
-          <caret line="135" column="64" selection-start-line="135" selection-start-column="64" selection-end-line="135" selection-end-column="64" />
+        <state relative-caret-position="-788">
+          <caret line="142" column="16" selection-start-line="142" selection-start-column="16" selection-end-line="142" selection-end-column="16" />
           <folding>
             <element signature="e#10#24#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/python-package/quantum_forest/DifferentiableTree.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="78">
+          <caret line="70" column="97" selection-start-line="70" selection-start-column="97" selection-end-line="70" selection-end-column="97" />
+          <folding>
+            <element signature="e#0#12#0" expanded="true" />
           </folding>
         </state>
       </provider>
