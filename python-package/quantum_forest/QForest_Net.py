@@ -13,6 +13,7 @@ class QForest_Net(nn.Module):
                 feat_info = None
             self.layers.append(
                 DecisionBlock(nFeat, config, flatten_output=False,feat_info=feat_info)
+                #MultiBlock(nFeat, config, flatten_output=False, feat_info=feat_info)
             )
 
         self.pooling = None
@@ -23,3 +24,7 @@ class QForest_Net(nn.Module):
             x = layer(x)
         x = x.mean(dim=-1)        #self.pooling(x)
         return x
+
+    def AfterEpoch(self, epoch=0):
+        for layer in self.layers:
+            layer.AfterEpoch(epoch)

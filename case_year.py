@@ -168,14 +168,17 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     report_frequency = 1000
 
     print(f"trainer.model={trainer.model}\ntrainer.opt={trainer.opt}")
+    model.AfterEpoch()
     t0=time.time()
     for batch in node_lib.iterate_minibatches(data.X_train, data.y_train, batch_size=config.batch_size,
                                          shuffle=True, epochs=float('inf')):
+
         metrics = trainer.train_on_batch(*batch, device=device)
         loss_history.append(metrics['loss'])
         if trainer.step%10==0:
             print(f"\r============ {trainer.step}\t{metrics['loss']:.5f}\ttime={time.time()-t0:.2f}\t",end="")
         if trainer.step % report_frequency == 0:
+            model.AfterEpoch()
             if torch.cuda.is_available():  # need lots of time!!!
                 torch.cuda.empty_cache()
             trainer.save_checkpoint()

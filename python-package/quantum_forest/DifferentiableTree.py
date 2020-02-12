@@ -13,11 +13,11 @@ class DeTree(nn.Module):
     def init_attention(self,init_func,in_features, num_trees, depth,feat_info=None):
         #f = initialize_selection_logits_.__name__
         init_func = nn.init.uniform_
-        self.choice_reuse = False       #效果不理想，奇怪
+        self.attention_reuse = False       #效果不理想，奇怪
         self.in_features, self.num_trees, self.depth=in_features, num_trees, depth
         self.nChoice = self.num_trees*self.depth
         self.nSingle = self.in_features
-        if self.choice_reuse:
+        if self.attention_reuse:
             self.nChoice = self.nChoice//10
             print(f"======  init_attention nChoice={self.nChoice}")
             self.choice_map = [random.randrange(0, self.nChoice) for _ in range(self.num_trees*self.depth)] #random.sample(range(self.nSeed), self.nChoice)
@@ -63,21 +63,34 @@ class DeTree(nn.Module):
                 self.feat_attention = nn.Parameter(feat_val, requires_grad=True)
                 print(f"====== init_attention from feat_info={feat_info.columns}")
             self.feat_attention = nn.Parameter( feat_val, requires_grad=True )
+        #self.feat_W = nn.Parameter(torch.Tensor(self.in_features).uniform_(), requires_grad=True)
 
         print(f"====== init_attention f={init_func.__name__} no_attention={self.no_attention}")
 
     #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
     def get_choice_weight(self,input):
+        nBatch,in_feat = input.shape[0],input.shape[1]
         choice_weight = self.choice_function(self.feat_attention, dim=0)        #choice_function=entmax15
+        #choice_weight = torch.einsum('f,fn->fn', self.feat_W,choice_weight)
         # ^--[in_features, num_trees, depth]
-        if self.choice_reuse:
+        if self.attention_reuse:
             choice_weight = choice_weight[:, self.choice_map]
             #for i,id in enumerate(self.choice_map):
             #    self.choice[:,i] = choice_weight[:,id]
         else:
             pass
-        choice_weight = choice_weight.view(self.in_features,self.num_trees,-1)
-        feature_values = torch.einsum('bi,ind->bnd', input, choice_weight)
+        if False:   #如何稀疏化?
+            expand_cols=[]
+            for i in range(in_feat):
+                expand_cols.extend(list(range(self.num_trees)))
+            input_expand = input[:,expand_cols]
+            input_expand = input_expand.view(nBatch,self.num_trees,-1)
+            choice_weight = choice_weight.view(self.in_features,self.num_trees,-1)
+            feature_values = torch.einsum('btf,ftd->btd', input_expand, choice_weight) #x=bt
+            feature_values = feature_values.view(nBatch, self.num_trees, -1)
+        else:
+            choice_weight = choice_weight.view(self.in_features,self.num_trees,-1)
+            feature_values = torch.einsum('bi,ind->bnd', input, choice_weight)
         return feature_values
 
     def __init__(self, in_features, num_trees,config, flatten_output=True,
@@ -166,10 +179,11 @@ class DeTree(nn.Module):
         assert len(input.shape) >= 2
         if len(input.shape) > 2:
             return self.forward(input.view(-1, input.shape[-1])).view(*input.shape[:-1], -1)
+
         # new input shape: [batch_size, in_features]
         if self.no_attention:
             feature_values = input[:, self.feat_map]  # torch.index_select(input.flatten(), 0, self.feat_select)
-            feature_values = torch.einsum('bf,f->bf',feature_values,self.feat_weight)
+            #feature_values = torch.einsum('bf,f->bf',feature_values,self.feat_weight)
             feature_values = feature_values.reshape(-1, self.num_trees, self.depth)
             assert feature_values.shape[0] == input.shape[0]
         else:

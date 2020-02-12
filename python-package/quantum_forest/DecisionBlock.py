@@ -6,6 +6,7 @@ import quantum_forest
 from node_lib.odst import ODST
 import copy
 import random
+from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15
 
 class DecisionBlock(nn.Sequential):
     def __init__(self, input_dim, config, flatten_output=True, feat_info=None, **kwargs):
@@ -51,6 +52,9 @@ class DecisionBlock(nn.Sequential):
         #outputs = outputs.mean(dim=-1)
         return outputs
 
+    def AfterEpoch(self,epoch=0):
+        pass
+
 class MultiBlock(nn.Module):
     def __init__(self, input_dim, config_0, flatten_output=True, feat_info=None, **kwargs):
         super(MultiBlock, self).__init__()
@@ -59,11 +63,14 @@ class MultiBlock(nn.Module):
         self.nEachTree = config_0.nTree //10
         self.blocks=nn.ModuleList()
         self.isSparseFeat=False
+        # 效果不明显，很难替换    [3.2853165 4.8626194 3.4907362 3.6596875 3.849822  4.1120253 4.332555,3.3396778 4.4621625 2.7200086]
+        self.block_weight = nn.Parameter(torch.Tensor(self.nSub).uniform_(), requires_grad=True)
         if self.isSparseFeat:
             self.nEachFeat = input_dim//2
         else:
             self.nEachFeat = input_dim
         self.feat_maps=[]
+        self.feat_W = []
         for i in range(self.nSub):
             config = copy.deepcopy(config_0)
             config.nTree = self.nEachTree
@@ -73,6 +80,7 @@ class MultiBlock(nn.Module):
                 self.feat_maps.append(map)
                 sub_info = feat_info.iloc[map, :]
             else:
+                self.feat_W.append(nn.Parameter(torch.Tensor(self.in_features).uniform_().cuda(), requires_grad=True))
                 sub_info = feat_info
             block = DecisionBlock(nFeat, config, flatten_output=flatten_output,feat_info=sub_info)
             self.blocks.append(block)
@@ -87,7 +95,13 @@ class MultiBlock(nn.Module):
                 x0=x00[:,map]
             else:
                 x0 = x00
+                #feat_w = entmax15(self.feat_W[i], dim=0)
+                #feat_w = self.feat_W[i]
+                #x0 = torch.einsum('bf,f->bf', x00, feat_w)
             x=block.forward(x0)
-            outputs.append(x)
+            outputs.append(x*self.block_weight[i])
         output = torch.cat(outputs,dim=1)
         return output
+
+    def AfterEpoch(self,epoch=0):
+        print(f"\t==== block_weight={self.block_weight.detach().cpu().numpy()}")
