@@ -70,7 +70,7 @@ class Visualize:
             return buf
 
     '''
-            sns.heatmap 很难用，需用自定义，参见https://stackoverflow.com/questions/53248186/custom-ticks-for-seaborn-heatmap
+        代码没法重用诶
     '''
     def HeatMap(self, data, file_name, params={},noAxis=True, cbar=True):
         title,isSave = file_name,True
@@ -78,12 +78,14 @@ class Visualize:
             isSave = params['save']
         if 'title' in params:
             title = params['title']
+        if 'cmap' in params:
+            cmap = params['cmap']
+        else:
+            cmap = 'coolwarm'  # "plasma"  #https://matplotlib.org/examples/color/colormaps_reference.html
         path = '{}{}_.jpg'.format(self.img_dir, file_name)
-        sns.set(font_scale=3)
+        sns.set(font_scale=2)
         s = max(data.shape[1] / self.dpi, data.shape[0] / self.dpi)
         # fig.set_size_inches(18.5, 10.5)
-        cmap = 'coolwarm'  # "plasma"  #https://matplotlib.org/examples/color/colormaps_reference.html
-        # cmap = sns.cubehelix_palette(start=1, rot=3, gamma=0.8, as_cmap=True)
         if noAxis:  # tight samples for training(No text!!!)
             figsize = (s, s)
             fig, ax = plt.subplots(figsize=figsize, dpi=self.dpi)
@@ -97,21 +99,20 @@ class Visualize:
                 cv2.imshow("",image);       cv2.waitKey(0)
             plt.close("all")
             return path
-        else:  # for paper
+        else:  # for QuantumForest
             ticks = np.linspace(0, 1, 10)
             xlabels = [int(i) for i in np.linspace(0, 56, 10)]
             ylabels = xlabels
-            figsize = (s * 10, s * 10)
-            #fig, ax = plt.subplots(figsize=figsize, dpi=self.dpi)  # more concise than plt.figure:
-            fig, ax = plt.subplots(dpi=self.dpi)
+            fig, ax = plt.subplots(figsize=(10,10))#dpi=self.dpi
             ax.set_title(title)
             # cbar_kws={'label': 'Reflex', 'orientation': 'horizontal'}
             # sns.set(font_scale=0.2)
             #  cbar_kws={'label': 'Reflex', 'orientation': 'horizontal'} , center=0.6
             # ax = sns.heatmap(data, ax=ax, cmap=cmap,yticklabels=ylabels[::-1],xticklabels=xlabels)
             # cbar_kws = dict(ticks=np.linspace(0, 1, 10))
-            ax = sns.heatmap(data, ax=ax, cmap=cmap,vmin=-1.1, vmax=1.1, cbar=cbar) #
-            #plt.ylabel('Incident Angle');            plt.xlabel('Wavelength(nm)')
+            # ax = sns.heatmap(data, ax=ax, cmap=cmap,vmin=-1.1, vmax=1.1, cbar=cbar) #
+            ax = sns.heatmap(data, ax=ax, cmap=cmap, cbar=cbar,square=True,cbar_kws={"orientation": "horizontal"})
+            plt.ylabel('attention');            plt.xlabel('feature')
             if False:
                 ax.set_xticklabels(xlabels);            ax.set_yticklabels(ylabels[::-1])
                 y_limit = ax.get_ylim();
@@ -181,8 +182,10 @@ class Visualize:
     def image(self, file_name, img_, params={}):
         #np.random.rand(3, 512, 256),
         #self.MatPlot(img_.cpu().numpy(),title=name)
-
-        result = self.HeatMap(img_.cpu().numpy(),file_name,params,noAxis=False)
+        if isinstance(img_,np.ndarray):
+            result = self.HeatMap(img_, file_name, params, noAxis=False)
+        else:
+            result = self.HeatMap(img_.cpu().numpy(),file_name,params,noAxis=False)
         return result
 
     def UpdateLoss(self,title,legend,loss,yLabel='LOSS',global_step=None):
@@ -202,7 +205,10 @@ class  Visdom_Visualizer(Visualize):
     def __init__(self,env_title,plots=[], **kwargs):
         super(Visdom_Visualizer, self).__init__(env_title,plots)
         self.viz = visdom.Visdom(env=env_title, **kwargs)
-        assert self.viz.check_connection()
+        if self.viz.check_connection():
+            pass
+        else:
+            self.viz = None
 
     def UpdateLoss(self, title,legend, loss, yLabel='LOSS',global_step=None):
         self.vis_plot( self.loss_step, loss, title,legend,yLabel)

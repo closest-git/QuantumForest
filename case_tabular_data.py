@@ -24,15 +24,17 @@ from sklearn.model_selection import KFold
 
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
-#dataset = "MICROSOFT"
-dataset = "YAHOO"
+dataset = "MICROSOFT"
+#dataset = "YAHOO"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def InitExperiment(config,fold_n):
     config.experiment = f'{config.data_set}_{config.model_info()}_{fold_n}'   #'year_node_shallow'
     #experiment = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment, *time.gmtime()[:5])
-    visual = None#quantum_forest.Visdom_Visualizer(env_title=config.experiment)
+    #visual = quantum_forest.Visdom_Visualizer(env_title=config.experiment)
+    visual = quantum_forest.Visualize(env_title=config.experiment)
+    visual.img_dir = "./results/images/"
     print("experiment:", config.experiment)
     log_path=f"logs/{config.experiment}"
     if os.path.exists(log_path):        #so strange!!!
@@ -130,16 +132,15 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     in_features = data.X_train.shape[1]
     #config.tree_module = node_lib.ODST
     config.tree_module = quantum_forest.DeTree
-    if True:
-        model = quantum_forest.QForest_Net(in_features,config,feat_info=feat_info)\
-            .to(device)
+    if True:#,feat_info=feat_info
+        model = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info).to(device)
     else:
         model = nn.Sequential(
             DecisionBlock(in_features, config, flatten_output=False,feat_info=feat_info),
             #MultiBlock(in_features, config, flatten_output=False,feat_info=feat_info),
             #node_lib.Lambda(lambda x: x[..., 0].mean(dim=-1)),  # average first channels of every tree
         ).to(device)
-
+    model.visual = visual
     print(model)
     dump_model_params(model)
 
@@ -150,6 +151,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     #if torch.cuda.device_count() > 1:        model = nn.DataParallel(model)
 
     from qhoptim.pyt import QHAdam
+    #weight_decay的值需要反复适配       如取1.0e-6 还可以  0.61142-0.58948
     optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':0.002 }
     trainer = node_lib.Trainer(
         model=model, loss_function=F.mse_loss,
@@ -168,8 +170,8 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     report_frequency = 1000
 
     print(f"trainer.model={trainer.model}\ntrainer.opt={trainer.opt}")
-    model.AfterEpoch()
-    t0=time.time()
+    model.AfterEpoch(isBetter=True, epoch=0)
+    epoch,t0=0,time.time()
     for batch in node_lib.iterate_minibatches(data.X_train, data.y_train, batch_size=config.batch_size,
                                          shuffle=True, epochs=float('inf')):
 
@@ -178,7 +180,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         if trainer.step%10==0:
             print(f"\r============ {trainer.step}\t{metrics['loss']:.5f}\ttime={time.time()-t0:.2f}\t",end="")
         if trainer.step % report_frequency == 0:
-            model.AfterEpoch()
+            epoch=epoch+1
             if torch.cuda.is_available():  # need lots of time!!!
                 torch.cuda.empty_cache()
             trainer.save_checkpoint()
@@ -187,6 +189,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             mse = trainer.evaluate_mse(
                 data.X_valid, data.y_valid, device=device, batch_size=1024)
 
+            model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
             if mse < best_mse:
                 best_mse = mse
                 best_step_mse = trainer.step
@@ -197,17 +200,18 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             trainer.remove_old_temp_checkpoints()
 
             if visual is None:
-                clear_output(True)
-                plt.figure(figsize=[18, 6])
-                plt.subplot(1, 2, 1)
-                plt.plot(loss_history)
-                plt.title('Loss')
-                plt.grid()
-                plt.subplot(1, 2, 2)
-                plt.plot(mse_history)
-                plt.title('MSE')
-                plt.grid()
-                plt.show()
+                if config.plot_train:
+                    clear_output(True)
+                    plt.figure(figsize=[18, 6])
+                    plt.subplot(1, 2, 1)
+                    plt.plot(loss_history)
+                    plt.title('Loss')
+                    plt.grid()
+                    plt.subplot(1, 2, 2)
+                    plt.plot(mse_history)
+                    plt.title('MSE')
+                    plt.grid()
+                    plt.show()
             else:
                 visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
 

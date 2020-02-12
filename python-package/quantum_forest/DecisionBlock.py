@@ -17,14 +17,20 @@ class DecisionBlock(nn.Sequential):
         num_trees = config.nTree
         Module = config.tree_module
         for i in range(config.num_layers):
-            oddt = Module(input_dim, num_trees, config, flatten_output=True,feat_info=feat_info, **kwargs)
+            layer = Module(input_dim, num_trees, config, flatten_output=True,feat_info=feat_info, **kwargs)
             input_dim = min(input_dim + num_trees * tree_dim, config.max_features or float('inf'))
-            layers.append(oddt)
+            layers.append(layer)
 
         super().__init__(*layers)
         self.num_layers, self.layer_dim, self.tree_dim = config.num_layers, num_trees, tree_dim
         self.max_features, self.flatten_output = config.max_features, flatten_output
         self.input_dropout = config.input_dropout
+
+    def get_attentions(self):
+        attentions=[]
+        for layer in self:
+            attentions.append(layer.feat_attention)
+        return attentions
 
     def forward(self, x):
         nSamp = x.shape[0]

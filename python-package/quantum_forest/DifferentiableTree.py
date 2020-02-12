@@ -70,7 +70,12 @@ class DeTree(nn.Module):
     #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
     def get_choice_weight(self,input):
         nBatch,in_feat = input.shape[0],input.shape[1]
+        #att_max = torch.max(self.feat_attention)       无效
+        #self.feat_attention.data = self.feat_attention.data / att_max
         choice_weight = self.choice_function(self.feat_attention, dim=0)        #choice_function=entmax15
+        #c_max = torch.max(choice_weight)
+        #choice_weight[choice_weight < c_max] = 0
+
         #choice_weight = torch.einsum('f,fn->fn', self.feat_W,choice_weight)
         # ^--[in_features, num_trees, depth]
         if self.attention_reuse:
@@ -143,10 +148,13 @@ class DeTree(nn.Module):
         self.init_responce_func = initialize_response_
         self.init_choice_func = initialize_selection_logits_
 
+
         self.response = nn.Parameter(torch.zeros([num_trees, tree_dim, 2 ** depth]), requires_grad=True)
         initialize_response_(self.response)
 
         self.init_attention(initialize_selection_logits_,in_features, num_trees, depth,feat_info)
+        self.nAtt = self.feat_attention.numel()  # sparse attention
+        self.nzAtt = self.nAtt - self.feat_attention.nonzero().size(0)
         '''
         self.feat_attention = nn.Parameter(torch.zeros([in_features, num_trees, depth]), requires_grad=True
         )
@@ -223,7 +231,7 @@ class DeTree(nn.Module):
         response = torch.einsum('bnd,ncd->bnc', response_weights, self.response)
         # ^-- [batch_size, num_trees, tree_dim]
         #for i in range(self.num_trees):       response[:,i,:] = response[:,i,:]*self.tree_weight[i]
-
+        self.nzAtt = self.nAtt-self.feat_attention.nonzero().size(0)
         return response.flatten(1, 2) if self.flatten_output else response
 
     def initialize(self, input, eps=1e-6):
