@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import node_lib
-import quantum_forest
-from node_lib.odst import ODST
+#import node_lib
+#import quantum_forest
+from .DifferentiableTree import *
 import copy
 import random
 from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15
@@ -17,6 +17,9 @@ class DecisionBlock(nn.Sequential):
         num_trees = config.nTree
         Module = config.tree_module
         for i in range(config.num_layers):
+            if config.data_normal == "BN":
+                layer = nn.BatchNorm1d(input_dim)
+                layers.append(layer)
             layer = Module(input_dim, num_trees, config, flatten_output=True,feat_info=feat_info, **kwargs)
             input_dim = min(input_dim + num_trees * tree_dim, config.max_features or float('inf'))
             layers.append(layer)
@@ -29,10 +32,11 @@ class DecisionBlock(nn.Sequential):
     def get_attentions(self):
         attentions=[]
         for layer in self:
-            attentions.append(layer.feat_attention)
+            if isinstance(layer,DeTree):
+                attentions.append(layer.feat_attention)
         return attentions
 
-    def forward(self, x):
+    def forward_dense(self, x):
         nSamp = x.shape[0]
         initial_features = x.shape[-1]
         for layer in self:
@@ -51,11 +55,28 @@ class DecisionBlock(nn.Sequential):
             outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.tree_dim)
         if self.config.max_out:
             outputs = torch.max(outputs, -1).values
+            # outputs = torch.mean(outputs, -1)      确实不如maxout
+            # outputs = outputs.mean(dim=-1)
         else:
             outputs = outputs[..., 0]
+        return outputs
 
-        #outputs = torch.mean(outputs, -1)      确实不如maxout
-        #outputs = outputs.mean(dim=-1)
+    def forward(self, x):
+        nSamp = x.shape[0]
+        if self.training and self.input_dropout:
+            x = F.dropout(x, self.input_dropout)
+        for layer in self:
+            layer_inp = x
+            x = layer(layer_inp)
+        outputs = x
+        if not self.flatten_output:
+            outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.tree_dim)
+        if self.config.max_out:
+            outputs = torch.max(outputs, -1).values
+            # outputs = torch.mean(outputs, -1)      确实不如maxout
+            # outputs = outputs.mean(dim=-1)
+        else:
+            outputs = outputs[..., 0]
         return outputs
 
     def AfterEpoch(self,epoch=0):

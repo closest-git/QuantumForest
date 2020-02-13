@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 class QForest_Net(nn.Module):
     def __init__(self, in_features, config,feat_info=None):
         super(QForest_Net, self).__init__()
+        config.feat_info = feat_info
         self.layers = nn.ModuleList()
         self.nTree = config.nTree
         self.config = config

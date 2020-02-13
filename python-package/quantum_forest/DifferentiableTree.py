@@ -237,8 +237,9 @@ class DeTree(nn.Module):
     def initialize(self, input, eps=1e-6):
         # data-aware initializer
         assert len(input.shape) == 2
-        if input.shape[0] < 1000:
-            warn("Data-aware initialization is performed on less than 1000 data points. This may cause instability.")
+        nSamp = input.shape[0]
+        if  nSamp < 1000:
+            print(f"!!!!!! DeTree::initialize@{self.__repr__()} has only {nSamp} sampls. This may cause instability.\n")
 
         with torch.no_grad():
             if self.no_attention:

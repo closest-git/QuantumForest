@@ -24,8 +24,8 @@ from sklearn.model_selection import KFold
 
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
-dataset = "MICROSOFT"
-#dataset = "YAHOO"
+#dataset = "MICROSOFT"
+dataset = "YAHOO"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -133,7 +133,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     #config.tree_module = node_lib.ODST
     config.tree_module = quantum_forest.DeTree
     if True:#,feat_info=feat_info
-        model = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info).to(device)
+        model = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info).to(device)       #
     else:
         model = nn.Sequential(
             DecisionBlock(in_features, config, flatten_output=False,feat_info=feat_info),
@@ -181,8 +181,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             print(f"\r============ {trainer.step}\t{metrics['loss']:.5f}\ttime={time.time()-t0:.2f}\t",end="")
         if trainer.step % report_frequency == 0:
             epoch=epoch+1
-            if torch.cuda.is_available():  # need lots of time!!!
-                torch.cuda.empty_cache()
+            if torch.cuda.is_available():   torch.cuda.empty_cache()
             trainer.save_checkpoint()
             trainer.average_checkpoints(out_tag='avg')
             trainer.load_checkpoint(tag='avg')
@@ -224,18 +223,16 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             print("Best Val MSE: %0.5f" % (best_mse))
             break
     if data.X_test is not None:
-        if torch.cuda.is_available():  # need lots of time!!!
-            torch.cuda.empty_cache()
+        if torch.cuda.is_available():  torch.cuda.empty_cache()
         trainer.load_checkpoint(tag='best_mse')
         t0=time.time()
-        mse = trainer.evaluate_mse(data.X_test, data.y_test, device=device, batch_size=2048)
+        mse = trainer.evaluate_mse(data.X_test, data.y_test, device=device, batch_size=1024)
         print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} time={time.time()-t0:.2f}' )
         best_mse = mse
     return best_mse,mse
 
 
 def Fold_learning(fold_n,data,config,visual):
-
     t0 = time.time()
     if config.model=="QForest":
         if config.feat_info == "importance":
@@ -262,7 +259,7 @@ if __name__ == "__main__":
     config.model="QForest"      #"QForest"            "GBDT"
     if dataset=="YAHOO" or dataset=="MICROSOFT":
         config,visual = InitExperiment(config, 0)
-        data.onFold(0,pkl_path=f"{data_root}{dataset}/FOLD__.pickle")
+        data.onFold(0,config,pkl_path=f"{data_root}{dataset}/FOLD_Quantile_.pickle")
         Fold_learning(0,data, config,visual)
     else:
         nFold = 5

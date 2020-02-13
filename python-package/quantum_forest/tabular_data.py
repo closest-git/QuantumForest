@@ -84,7 +84,7 @@ class TabularDataset:
         return feat_info
 
 
-    def onFold(self,fold,pkl_path=None, train_index=None, valid_index=None, test_index=None):
+    def onFold(self,fold,config,pkl_path=None, train_index=None, valid_index=None, test_index=None):
         if pkl_path is not None:
             print("====== onFold pkl_path={} ......".format(pkl_path))
         if pkl_path is not None and os.path.isfile(pkl_path):
@@ -103,13 +103,9 @@ class TabularDataset:
                 print(f"====== TabularDataset::Fold_{fold}......")
             mu, std = self.y_train.mean(), self.y_train.std()
             print("onFold:\tmean = %.5f, std = %.5f" % (mu, std))
-            if False:
-                normalize = lambda x: ((x - mu) / std).astype(np.float32)
-                self.y_train, self.y_valid,self.y_test = map(normalize, [self.y_train, self.y_valid,self.y_test])
-            else:
-                self.y_train = ((self.y_train - mu) / std).astype(np.float32)
-                self.y_valid = ((self.y_valid - mu) / std).astype(np.float32)
-                if self.y_test is not None:     self.y_test = ((self.y_test - mu) / std).astype(np.float32)
+            self.y_train = ((self.y_train - mu) / std).astype(np.float32)
+            self.y_valid = ((self.y_valid - mu) / std).astype(np.float32)
+            if self.y_test is not None:     self.y_test = ((self.y_test - mu) / std).astype(np.float32)
             t0=time.time()
             listX, _ = self.quantile_transform(self.random_state, self.X_train,
                     [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
