@@ -68,7 +68,7 @@ class DeTree(nn.Module):
         print(f"====== init_attention f={init_func.__name__} no_attention={self.no_attention}")
 
     #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
-    def get_choice_weight(self,input):
+    def get_attention_value(self,input):
         nBatch,in_feat = input.shape[0],input.shape[1]
         #att_max = torch.max(self.feat_attention)       无效
         #self.feat_attention.data = self.feat_attention.data / att_max
@@ -95,7 +95,7 @@ class DeTree(nn.Module):
             feature_values = feature_values.view(nBatch, self.num_trees, -1)
         else:
             choice_weight = choice_weight.view(self.in_features,self.num_trees,-1)
-            feature_values = torch.einsum('bi,ind->bnd', input, choice_weight)
+            feature_values = torch.einsum('bf,fnd->bnd', input, choice_weight)
         return feature_values
 
     def __init__(self, in_features, num_trees,config, flatten_output=True,
@@ -136,13 +136,13 @@ class DeTree(nn.Module):
         super().__init__()
         tree_dim = config.tree_dim
         depth = config.depth
-
+        self.config = config
         self.isInitFromData = False
         self.depth, self.num_trees, self.tree_dim, self.flatten_output = \
             depth, num_trees, tree_dim, config.flatten_output
         #self.choice_function, self.bin_function = choice_function, bin_function
         self.choice_function = entmax15
-        self.bin_func = "05_01"
+        self.bin_func = "05_01"     #"05_01"        "entmoid15" "softmax"
         self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
         self.init_responce_func = initialize_response_
@@ -195,28 +195,29 @@ class DeTree(nn.Module):
             feature_values = feature_values.reshape(-1, self.num_trees, self.depth)
             assert feature_values.shape[0] == input.shape[0]
         else:
-            feature_values = self.get_choice_weight(input)
-            #feature_values = torch.einsum('bi,ind->bnd', input, feature_selectors)
+            feature_values = self.get_attention_value(input)
         # ^--[batch_size, num_trees, depth]
 
         threshold_logits = (feature_values - self.feature_thresholds) * torch.exp(-self.log_temperatures)
-        #threshold_logits = (feature_values ) * torch.exp(-self.log_temperatures) - self.feature_thresholds
-
+        #threshold_logits = (feature_values ) * torch.exp(-self.log_temperatures) - self.feature_thresholds 差不多
+        if False:  #relative distance has no effect
+            threshold_logits = threshold_logits/(torch.abs(self.feature_thresholds)+1.0e-4)
         threshold_logits = torch.stack([-threshold_logits, threshold_logits], dim=-1)
         # ^--[batch_size, num_trees, depth, 2]
 
         #RESPONSE_WEIGHTS 1)choice at each level of OTree 2) 3)c1*c2*c3*c4*c5 for each [leaf,tree,sample]
         #bins = self.bin_function(threshold_logits)
-        bin_func = "05_01"
-        if bin_func=="entmoid15":                   #0.68477
+        if self.bin_func=="entmoid15":                   #0.68477
             bins = entmoid15(threshold_logits)
-        elif bin_func=="05_01":                     #0.67855
+        elif self.bin_func=="05_01":                     #0.67855
             bins = (0.5 * threshold_logits + 0.5)
             #bins = bins.clamp_(0, 1)
             bins = bins.clamp_(-0.5, 1.5)
-        elif bin_func == "05":                      #后继乏力(0.629)
+        elif self.bin_func == "softmax":
+            bins = F.softmax(threshold_logits,dim=-1)
+        elif self.bin_func == "05":                      #后继乏力(0.629)
             bins = (0.5 * threshold_logits + 0.5)
-        elif bin_func == "":                        #后继乏力(0.630)
+        elif self.bin_func == "":                        #后继乏力(0.630)
             bins = threshold_logits
 
         # ^--[batch_size, num_trees, depth, 2], approximately binary
@@ -228,10 +229,14 @@ class DeTree(nn.Module):
         else:
             response_weights = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
 
-        response = torch.einsum('bnd,ncd->bnc', response_weights, self.response)
-        # ^-- [batch_size, num_trees, tree_dim]
+        if True:
+            response = torch.einsum('bnd,ncd->bnc', response_weights, self.response)
+            # ^-- [batch_size, num_trees, tree_dim]
+        else:
+            response = torch.einsum('b,btl->btl', self.config.y_batch,response_weights)
+
         #for i in range(self.num_trees):       response[:,i,:] = response[:,i,:]*self.tree_weight[i]
-        self.nzAtt = self.nAtt-self.feat_attention.nonzero().size(0)
+
         return response.flatten(1, 2) if self.flatten_output else response
 
     def initialize(self, input, eps=1e-6):
@@ -248,7 +253,7 @@ class DeTree(nn.Module):
                 feature_values=feature_values.reshape(-1,self.num_trees,self.depth)
                 assert feature_values.shape[0]==input.shape[0]
             else:
-                feature_values = self.get_choice_weight(input)
+                feature_values = self.get_attention_value(input)
             #feature_selectors = self.choice_function(self.feat_attention, dim=0)
             # ^--[in_features, num_trees, depth]
             #feature_values = torch.einsum('bi,ind->bnd', input, feature_selectors)

@@ -23,7 +23,7 @@ class QForest_config:
         self.plot_root = "./results/"
         self.plot_train = False
         self.plot_attention = True
-        self.data_normal = "BN"        #"Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
+        self.data_normal = ""        #"Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
@@ -38,7 +38,8 @@ class QForest_config:
             self.depth, self.batch_size, self.nTree, self.tree_dim = 5, 256, 6144, 3  # 0.5895
             self.depth, self.batch_size, self.nTree, self.tree_dim = 5, 256, 2048, 3  # 0.5913->0.5892(maxout)
             self.depth, self.batch_size, self.nTree, self.tree_dim, self.nLayers = 5, 256, 2048, 3, 1  #
-            self.depth, self.batch_size, self.nTree, self.tree_dim, self.nLayers = 5, 256, 2048, 3, 2 #for BN
+            self.depth, self.batch_size, self.nTree, self.tree_dim, self.nLayers = 5, 256, 2048, 3, 1  #for BN
+            #nLayers 4-0.58854
             #tree_dim=  5-0.5910;  3-0.5913
         elif data_set=="MICROSOFT":
             self.depth, self.batch_size, self.nTree, self.tree_dim, self.nLayers = 5, 256, 2048, 3, 1
