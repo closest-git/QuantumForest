@@ -13,7 +13,7 @@ class DecisionBlock(nn.Sequential):
         super(DecisionBlock, self).__init__()
         self.config = config
         layers = []
-        tree_dim=config.tree_dim
+        response_dim=config.response_dim
         num_trees = config.nTree
         Module = config.tree_module
         for i in range(config.num_layers):
@@ -21,11 +21,11 @@ class DecisionBlock(nn.Sequential):
                 layer = nn.BatchNorm1d(input_dim)
                 layers.append(layer)
             layer = Module(input_dim, num_trees, config, flatten_output=True,feat_info=feat_info, **kwargs)
-            input_dim = min(input_dim + num_trees * tree_dim, config.max_features or float('inf'))
+            input_dim = min(input_dim + num_trees * response_dim, config.max_features or float('inf'))
             layers.append(layer)
 
         super().__init__(*layers)
-        self.num_layers, self.layer_dim, self.tree_dim = config.num_layers, num_trees, tree_dim
+        self.num_layers, self.layer_dim, self.response_dim = config.num_layers, num_trees, response_dim
         self.max_features, self.flatten_output = config.max_features, flatten_output
         self.input_dropout = config.input_dropout
 
@@ -52,7 +52,7 @@ class DecisionBlock(nn.Sequential):
 
         outputs = x[..., initial_features:]
         if not self.flatten_output:
-            outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.tree_dim)
+            outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.response_dim)
         if self.config.max_out:
             outputs = torch.max(outputs, -1).values
             # outputs = torch.mean(outputs, -1)      确实不如maxout
@@ -69,14 +69,15 @@ class DecisionBlock(nn.Sequential):
             layer_inp = x
             x = layer(layer_inp)
         outputs = x
-        if not self.flatten_output:
-            outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.tree_dim)
-        if self.config.max_out:
-            outputs = torch.max(outputs, -1).values
-            # outputs = torch.mean(outputs, -1)      确实不如maxout
-            # outputs = outputs.mean(dim=-1)
-        else:
-            outputs = outputs[..., 0]
+        if self.config.leaf_output == "learn_distri":
+            if not self.flatten_output:
+                outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.response_dim)
+            if self.config.max_out:
+                outputs = torch.max(outputs, -1).values
+                # outputs = torch.mean(outputs, -1)      确实不如maxout
+                # outputs = outputs.mean(dim=-1)
+            else:
+                outputs = outputs[..., 0]
         return outputs
 
     def AfterEpoch(self,epoch=0):

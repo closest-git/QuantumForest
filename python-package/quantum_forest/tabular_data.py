@@ -103,9 +103,14 @@ class TabularDataset:
                 print(f"====== TabularDataset::Fold_{fold}......")
             mu, std = self.y_train.mean(), self.y_train.std()
             print("onFold:\tmean = %.5f, std = %.5f" % (mu, std))
-            self.y_train = ((self.y_train - mu) / std).astype(np.float32)
-            self.y_valid = ((self.y_valid - mu) / std).astype(np.float32)
-            if self.y_test is not None:     self.y_test = ((self.y_test - mu) / std).astype(np.float32)
+            if False:
+                self.y_train = ((self.y_train - mu) / std).astype(np.float32)
+                self.y_valid = ((self.y_valid - mu) / std).astype(np.float32)
+                if self.y_test is not None:     self.y_test = ((self.y_test - mu) / std).astype(np.float32)
+            else:
+                self.y_train = self.y_train.astype(np.float32)
+                self.y_valid = self.y_valid.astype(np.float32)
+                if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)
             t0=time.time()
             listX, _ = self.quantile_transform(self.random_state, self.X_train,
                     [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)

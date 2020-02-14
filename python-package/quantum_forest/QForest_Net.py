@@ -29,6 +29,7 @@ class QForest_Net(nn.Module):
         for layer in self.layers:
             x = layer(x)
         x = x.mean(dim=-1)        #self.pooling(x)
+        #x = torch.max(x,dim=-1).values
         return x
 
     def AfterEpoch(self, isBetter=False, epoch=0, accu=0):

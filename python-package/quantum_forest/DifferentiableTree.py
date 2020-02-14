@@ -108,10 +108,10 @@ class DeTree(nn.Module):
         One can drop (sic!) this module anywhere instead of nn.Linear
         :param in_features: number of features in the input tensor
         :param num_trees: number of trees in this layer
-        :param tree_dim: number of response channels in the response of individual tree
+        :param response_dim: number of response channels in the response of individual tree
         :param depth: number of splits in every tree
-        :param flatten_output: if False, returns [..., num_trees, tree_dim],
-            by default returns [..., num_trees * tree_dim]
+        :param flatten_output: if False, returns [..., num_trees, response_dim],
+            by default returns [..., num_trees * response_dim]
         :param choice_function: f(tensor, dim) -> R_simplex computes feature weights s.t. f(tensor, dim).sum(dim) == 1
         :param bin_function: f(tensor) -> R[0, 1], computes tree leaf weights
 
@@ -134,12 +134,12 @@ class DeTree(nn.Module):
             All points will be between (0.5 - 0.5 / threshold_init_cutoff) and (0.5 + 0.5 / threshold_init_cutoff)
         """
         super().__init__()
-        tree_dim = config.tree_dim
+        response_dim = config.response_dim
         depth = config.depth
         self.config = config
         self.isInitFromData = False
-        self.depth, self.num_trees, self.tree_dim, self.flatten_output = \
-            depth, num_trees, tree_dim, config.flatten_output
+        self.depth, self.num_trees, self.response_dim, self.flatten_output = \
+            depth, num_trees, response_dim, config.flatten_output
         #self.choice_function, self.bin_function = choice_function, bin_function
         self.choice_function = entmax15
         self.bin_func = "05_01"     #"05_01"        "entmoid15" "softmax"
@@ -148,9 +148,11 @@ class DeTree(nn.Module):
         self.init_responce_func = initialize_response_
         self.init_choice_func = initialize_selection_logits_
 
-
-        self.response = nn.Parameter(torch.zeros([num_trees, tree_dim, 2 ** depth]), requires_grad=True)
-        initialize_response_(self.response)
+        if self.config.leaf_output == "learn_distri":
+            self.response = nn.Parameter(torch.zeros([num_trees, response_dim, 2 ** depth]), requires_grad=True)
+            initialize_response_(self.response)
+        else:
+            self.response = None
 
         self.init_attention(initialize_selection_logits_,in_features, num_trees, depth,feat_info)
         self.nAtt = self.feat_attention.numel()  # sparse attention
@@ -229,15 +231,23 @@ class DeTree(nn.Module):
         else:
             response_weights = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
 
-        if True:
-            response = torch.einsum('bnd,ncd->bnc', response_weights, self.response)
-            # ^-- [batch_size, num_trees, tree_dim]
+        if self.config.leaf_output == "learn_distri":
+            response = torch.einsum('btl,tcl->btc', response_weights, self.response)
+            # ^-- [batch_size, num_trees, distri_dim]
+            return response.flatten(1, 2) if self.flatten_output else response
+        elif self.config.leaf_output == "Y":        #有问题，如何validate?
+            y_batch = self.config.y_batch
+            leaf_value = torch.einsum('b,btl->btl', y_batch,response_weights)
+            leaf_value = leaf_value.mean(dim=0)
+            response = torch.einsum('btl,tl->bt', response_weights, leaf_value)
+            return response
         else:
-            response = torch.einsum('b,btl->btl', self.config.y_batch,response_weights)
+            assert(False)
+            return None
 
         #for i in range(self.num_trees):       response[:,i,:] = response[:,i,:]*self.tree_weight[i]
 
-        return response.flatten(1, 2) if self.flatten_output else response
+
 
     def initialize(self, input, eps=1e-6):
         # data-aware initializer
@@ -276,10 +286,10 @@ class DeTree(nn.Module):
             self.log_temperatures.data[...] = torch.log(torch.as_tensor(temperatures) + eps)
 
     def __repr__(self):
-        return "{}(F={},T={},D={}, tree_dim={}, " \
+        return "{}(F={},T={},D={}, response_dim={}, " \
                "flatten_output={},bin_func={},init_response={},init_choice={})".format(
             self.__class__.__name__, 0 if self.no_attention else self.feat_attention.shape[0],
-            self.num_trees, self.depth, self.tree_dim, self.flatten_output,
+            self.num_trees, self.depth, self.response_dim, self.flatten_output,
             self.bin_func,
             self.init_responce_func.__name__,self.init_choice_func.__name__
         )

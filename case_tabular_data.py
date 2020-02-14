@@ -24,8 +24,8 @@ from sklearn.model_selection import KFold
 
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
-#dataset = "MICROSOFT"
-dataset = "YAHOO"
+dataset = "MICROSOFT"
+#dataset = "YAHOO"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
