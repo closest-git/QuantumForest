@@ -31,6 +31,14 @@ class QForest_Net(nn.Module):
         x = x.mean(dim=-1)        #self.pooling(x)
         #x = torch.max(x,dim=-1).values
         return x
+    
+    def GetAttentions(self,isCat=True):
+        attentions=[]
+        for layer in self.layers:
+            for att in layer.get_attentions():
+                attentions.append(att)
+        all_att = torch.cat(attentions)
+        return all_att
 
     def AfterEpoch(self, isBetter=False, epoch=0, accu=0):
         attentions=[]

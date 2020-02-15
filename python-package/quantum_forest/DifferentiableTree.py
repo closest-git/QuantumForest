@@ -153,34 +153,38 @@ class DeTree(nn.Module):
             initialize_response_(self.response)
         else:
             self.response = None
+        self.path_map = None
 
         self.init_attention(initialize_selection_logits_,in_features, num_trees, depth,feat_info)
         self.nAtt = self.feat_attention.numel()  # sparse attention
         self.nzAtt = self.nAtt - self.feat_attention.nonzero().size(0)
-        '''
-        self.feat_attention = nn.Parameter(torch.zeros([in_features, num_trees, depth]), requires_grad=True
-        )
-        initialize_selection_logits_(self.feat_attention)
-        '''
-
-
+        
         self.feature_thresholds = nn.Parameter(
             torch.full([num_trees, depth], float('nan'), dtype=torch.float32), requires_grad=True
         )  # nan values will be initialized on first batch (data-aware init)
-
-
         self.log_temperatures = nn.Parameter(
             torch.full([num_trees, depth], float('nan'), dtype=torch.float32), requires_grad=True
         )
 
         # binary codes for mapping between 1-hot vectors and bin indices
-        with torch.no_grad():
-            indices = torch.arange(2 ** self.depth)
-            offsets = 2 ** torch.arange(self.depth)
-            bin_codes = (indices.view(1, -1) // offsets.view(-1, 1) % 2).to(torch.float32)
-            bin_codes_1hot = torch.stack([bin_codes, 1.0 - bin_codes], dim=-1)
-            self.bin_codes_1hot = nn.Parameter(bin_codes_1hot, requires_grad=False)
-            # ^-- [depth, 2 ** depth, 2]
+        if False:
+            nLeaf = 2 ** self.depth
+            self.path_map=[]
+            path_=[0,1,2,3,4]
+            for no in range(nLeaf):
+                for j in range(self.depth):
+                    left_rigt = no%2
+                    path.append(2**path_[j]+left_rigt)
+                    no = no//2
+                self.path_map.extend(path)
+        else: 
+            with torch.no_grad():
+                indices = torch.arange(2 ** self.depth)
+                offsets = 2 ** torch.arange(self.depth)
+                bin_codes = (indices.view(1, -1) // offsets.view(-1, 1) % 2).to(torch.float32)
+                bin_codes_1hot = torch.stack([bin_codes, 1.0 - bin_codes], dim=-1).cuda()
+                self.bin_codes_1hot = nn.Parameter(bin_codes_1hot, requires_grad=False)
+                # ^-- [depth, 2 ** depth, 2]
 
     def forward(self, input):
         if not self.isInitFromData:
@@ -223,13 +227,17 @@ class DeTree(nn.Module):
             bins = threshold_logits
 
         # ^--[batch_size, num_trees, depth, 2], approximately binary
-        if True:   #too much memory
-            bin_matches = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
-            # ^--[batch_size, num_trees, depth, 2 ** depth]
-            response_weights = torch.prod(bin_matches, dim=-2)
-            # ^-- [batch_size, num_trees, 2 ** depth]
+        if self.path_map is None:   #too much memory
+            path_ = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
+            # ^--[batch_size, num_trees, depth, 2 ** depth]            
         else:
-            response_weights = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
+            bins.flatten(-2,-1)     #each column is a Probability
+            path_ = bins[:,self.path_map]
+            path_.view(batch_size, num_trees,-1)
+            assert path.shape[-1]==2 ** depth
+
+        response_weights = torch.prod(path_, dim=-2)
+        # ^-- [batch_size, num_trees, 2 ** depth]
 
         if self.config.leaf_output == "learn_distri":
             response = torch.einsum('btl,tcl->btc', response_weights, self.response)

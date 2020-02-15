@@ -1,3 +1,11 @@
+'''
+@Author: Yingshi Chen
+@Date: 2020-02-14 11:59:10
+@LastEditTime : 2020-02-15 09:53:08
+@LastEditors  : Please set LastEditors
+@Description: In User Settings Edit
+@FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
+'''
 class QForest_config:
     def __init__(self,data_set, lr_base, nLayer=1,
                  choice_func="r_0.5",feat_info = None,random_seed=42,
@@ -25,6 +33,7 @@ class QForest_config:
         self.plot_attention = True
         self.data_normal = ""       #"Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
         self.leaf_output = "learn_distri"       #"learn_distri"   "Y"
+        self.reg_L1 = 1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
@@ -57,8 +66,8 @@ class QForest_config:
 
     def __repr__(self):
         main_str = f"{self.data_set}_ layers={self.nLayer} depth={self.depth} batch={self.batch_size} nTree={self.nTree} response_dim={self.response_dim} " \
-            f"max_out={self.max_out} choice=[{self.choice_func}] feat_info={self.feat_info}" \
-            f"NO_ATTENTION={self.no_attention}"
+            f"\nmax_out={self.max_out} choice=[{self.choice_func}] feat_info={self.feat_info}" \
+            f"\nNO_ATTENTION={self.no_attention} reg_L1={self.reg_L1}"
         #if self.isFC:       main_str+=" [FC]"
         if self.custom_legend is not None:
             main_str = main_str + f"_{self.custom_legend}"

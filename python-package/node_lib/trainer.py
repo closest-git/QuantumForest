@@ -133,6 +133,10 @@ class Trainer(nn.Module):
         #loss = self.loss_function(y_output, y_batch).mean()         #self.model(x_batch)
         loss = F.mse_loss(y_output, y_batch)
         loss = loss.mean()
+        if self.model.config.reg_L1>0:
+            all_att = self.model.GetAttentions()
+            reg_L1 = torch.sum(torch.abs(all_att))
+            loss = loss+reg_L1*self.model.config.reg_L1
         #print(f"\t{torch.min(loss)}:{torch.max(loss)}")
         loss.backward()
         self.opt.step()
