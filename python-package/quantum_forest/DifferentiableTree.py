@@ -166,34 +166,38 @@ class DeTree(nn.Module):
             torch.full([num_trees, depth], float('nan'), dtype=torch.float32), requires_grad=True
         )
 
-        # binary codes for mapping between 1-hot vectors and bin indices
-        if False:
+        
+        if self.config.path_way=="OBLIVIOUS_map":
             nLeaf = 2 ** self.depth
-            self.path_map=[]
-            path_=[0,1,2,3,4]
+            path_map,nodes=[],[0,1,2,3,4]
             for no in range(nLeaf):
-                for j in range(self.depth):
-                    left_rigt = no%2
-                    path.append(2**path_[j]+left_rigt)
+                path = []
+                for j in range(self.depth):                    
+                    left_rigt,node = no%2,nodes[j]
+                    path.append(2*node+left_rigt)      #OBLIVIOUS Tree
                     no = no//2
-                self.path_map.extend(path)
-        else: 
+                path_map.extend(path)
+            self.path_map = nn.Parameter(torch.tensor(path_map), requires_grad=False)
+            print("====== DeTree::__init__ path_map={path_map}")
+        else: # binary codes for mapping between 1-hot vectors and bin indices
             with torch.no_grad():
                 indices = torch.arange(2 ** self.depth)
                 offsets = 2 ** torch.arange(self.depth)
                 bin_codes = (indices.view(1, -1) // offsets.view(-1, 1) % 2).to(torch.float32)
                 bin_codes_1hot = torch.stack([bin_codes, 1.0 - bin_codes], dim=-1).cuda()
                 self.bin_codes_1hot = nn.Parameter(bin_codes_1hot, requires_grad=False)
+                print("====== DeTree::__init__ bin_codes_1hot={bin_codes_1hot}")
                 # ^-- [depth, 2 ** depth, 2]
 
     def forward(self, input):
         if not self.isInitFromData:
             self.initialize(input)
             self.isInitFromData = True
-        assert len(input.shape) >= 2
+        assert len(input.shape) >= 2        
         if len(input.shape) > 2:
             return self.forward(input.view(-1, input.shape[-1])).view(*input.shape[:-1], -1)
 
+        batch_size = input.shape[0]
         # new input shape: [batch_size, in_features]
         if self.no_attention:
             feature_values = input[:, self.feat_map]  # torch.index_select(input.flatten(), 0, self.feat_select)
@@ -231,10 +235,10 @@ class DeTree(nn.Module):
             path_ = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
             # ^--[batch_size, num_trees, depth, 2 ** depth]            
         else:
-            bins.flatten(-2,-1)     #each column is a Probability
-            path_ = bins[:,self.path_map]
-            path_.view(batch_size, num_trees,-1)
-            assert path.shape[-1]==2 ** depth
+            #each column is a Probability
+            path_ = torch.index_select(bins.flatten(-2,-1),dim=-1,index=self.path_map).view(batch_size, self.num_trees,self.depth,-1) 
+            #path_ = path_.view(batch_size, self.num_trees,self.depth,-1)
+            assert path_.shape[-1]==2 ** self.depth
 
         response_weights = torch.prod(path_, dim=-2)
         # ^-- [batch_size, num_trees, 2 ** depth]

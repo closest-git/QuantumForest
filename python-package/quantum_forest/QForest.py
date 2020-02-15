@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime : 2020-02-15 09:53:08
+@LastEditTime : 2020-02-15 11:30:43
 @LastEditors  : Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
@@ -34,6 +34,7 @@ class QForest_config:
         self.data_normal = ""       #"Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
         self.leaf_output = "learn_distri"       #"learn_distri"   "Y"
         self.reg_L1 = 1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
+        self.path_way="OBLIVIOUS_1hot"   #"TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
@@ -67,7 +68,7 @@ class QForest_config:
     def __repr__(self):
         main_str = f"{self.data_set}_ layers={self.nLayer} depth={self.depth} batch={self.batch_size} nTree={self.nTree} response_dim={self.response_dim} " \
             f"\nmax_out={self.max_out} choice=[{self.choice_func}] feat_info={self.feat_info}" \
-            f"\nNO_ATTENTION={self.no_attention} reg_L1={self.reg_L1}"
+            f"\nNO_ATTENTION={self.no_attention} reg_L1={self.reg_L1} path_way={self.path_way}"
         #if self.isFC:       main_str+=" [FC]"
         if self.custom_legend is not None:
             main_str = main_str + f"_{self.custom_legend}"
