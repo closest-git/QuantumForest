@@ -164,6 +164,8 @@ class Trainer(nn.Module):
             prediction = process_in_chunks(self.model, X_test, batch_size=batch_size)
             prediction = check_numpy(prediction)
             error_rate = ((y_test - prediction) ** 2).mean()
+        if torch.cuda.is_available():   
+            torch.cuda.empty_cache()
         return error_rate
     
     def evaluate_auc(self, X_test, y_test, device, batch_size=512):

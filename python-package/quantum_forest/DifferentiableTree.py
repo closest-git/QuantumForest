@@ -4,30 +4,29 @@ import torch.nn.functional as F
 import numpy as np
 import random
 import math
+import copy
 from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15
 from .some_utils import check_numpy
 from warnings import warn
 
 
 class DeTree(nn.Module):
-    def init_attention(self,init_func,in_features, num_trees, depth,feat_info=None):
+    def init_attention(self,init_func, feat_info=None):
         #f = initialize_selection_logits_.__name__
         init_func = nn.init.uniform_
-        self.attention_reuse = False       #效果不理想，奇怪
-        self.in_features, self.num_trees, self.depth=in_features, num_trees, depth
-        self.nChoice = self.num_trees*self.depth
+        self.attention_reuse = False       #效果不理想，奇怪        
+        self.nGateFuncs = self.num_trees*self.nFeature
         self.nSingle = self.in_features
         if self.attention_reuse:
-            self.nChoice = self.nChoice//10
-            print(f"======  init_attention nChoice={self.nChoice}")
-            self.choice_map = [random.randrange(0, self.nChoice) for _ in range(self.num_trees*self.depth)] #random.sample(range(self.nSeed), self.nChoice)
-            assert len(self.choice_map)==self.num_trees*self.depth
-        #self.feat_attention = nn.Parameter(torch.zeros([self.in_features, self.nChoice]), requires_grad=True)
+            self.nGateFuncs = self.nGateFuncs//10
+            print(f"======  init_attention nGate={self.nGateFuncs}")
+            self.choice_map = [random.randrange(0, self.nGateFuncs) for _ in range(self.num_trees*self.nFeature)] 
+            assert len(self.choice_map)==self.num_trees*self.nFeature
 
         weight=None
         if feat_info is not None and 'importance' in feat_info.columns:
             importance = torch.from_numpy(feat_info['importance'].values).float()
-            assert importance.shape[0] == in_features
+            assert importance.shape[0] == self.in_features
             fmax, fmin = torch.max(importance), torch.min(importance)
             weight = importance / fmax
             # weight[weight<1.0e-4] = 1.0e-4
@@ -35,28 +34,24 @@ class DeTree(nn.Module):
             nShow=min(self.in_features/2,20)
             print(f"====== feat weight={weight[0:nShow]}...{weight[self.in_features-nShow:self.in_features-1]} fmax={fmax}, fmin={fmin}")
 
-        if True:#weight is None:
-            self.feat_map = [random.randrange(0, self.in_features) for _ in range(self.nChoice)]
-        else:
-            self.feat_map = random.choices(population = list(range(self.in_features)),k = self.nChoice) #weights = weight,
+        #only for self.no_attention and weight is None
+        self.feat_map = random.choices(population = list(range(self.in_features)),k = self.nGateFuncs) #weights = weight,
         #self.feat_map[0]=1
         if self.no_attention:
-            self.feat_weight = nn.Parameter(torch.Tensor(self.nChoice).uniform_(), requires_grad=True)
-            #feat_select = torch.zeros(self.nChoice).int().cuda()
-            #for i, pos in enumerate(self.feat_map):               feat_select[i] = i * self.in_features + pos
+            self.feat_weight = nn.Parameter(torch.Tensor(self.nGateFuncs).uniform_(), requires_grad=True)
             pass
         elif False:  #仅用于对比
-            feat_val = torch.zeros([self.in_features, self.nChoice])
-            for i,pos in enumerate(self.feat_map):  #self.in_features*40
+            feat_val = torch.zeros([self.in_features, self.nGateFuncs])
+            for i,pos in enumerate(self.feat_map): 
                 feat_val[:, i] = 0
                 feat_val[pos, i] = 1
             self.feat_attention = nn.Parameter(feat_val, requires_grad=True)
-            print(f"===== !!! init_attention: SET {self.nChoice}-featrues to 1 !!!")
+            print(f"===== !!! init_attention: SET {self.nGateFuncs}-featrues to 1 !!!")
         else:
-            feat_val = torch.zeros([self.in_features, self.nChoice])
+            feat_val = torch.zeros([self.in_features, self.nGateFuncs])
             init_func(feat_val)
             if weight is not None :
-                for i in range(self.nChoice):
+                for i in range(self.nGateFuncs):
                     # print(feat_val[:,i])
                     feat_val[:, i] = feat_val[:, i] * weight
                     # print(feat_val[:, i])
@@ -97,6 +92,57 @@ class DeTree(nn.Module):
             choice_weight = choice_weight.view(self.in_features,self.num_trees,-1)
             feature_values = torch.einsum('bf,fnd->bnd', input, choice_weight)
         return feature_values
+    
+    def InitPathWay(self):
+        nLeaf = 2 ** self.depth  
+        nNode,level_nodes,path_map=0,[],[] 
+        for level in range(self.depth): #level_nodes has no Leaf!!!
+            if level==0:
+                nodes=[0]  
+            else:
+                nodes = []
+                for i,node in enumerate(uppers):
+                    nodes.append(nNode+2*i)
+                    nodes.append(nNode+2*i+1)
+            level_nodes.append(nodes)
+            uppers = copy.deepcopy(nodes);     nNode+=len(nodes)
+        print(f"====== DeTree::InitPathWay path_map={self.config.path_way} depth={self.depth} nLeaf={nLeaf} nNode={nNode} nFeature={self.nFeature}")
+        
+        if self.config.path_way=="OBLIVIOUS_map":
+            path_map,nodes=[],list(range(self.depth))
+            for no in range(nLeaf):
+                path = []
+                for j in range(self.depth):                    
+                    left_rigt,node = no%2,nodes[j]
+                    path.append(2*node+left_rigt)      #OBLIVIOUS Tree
+                    no = no//2
+                path_map.extend(path)
+            self.path_map = nn.Parameter(torch.tensor(path_map), requires_grad=False)
+            print(f"====== DeTree::__init__ path_map={path_map}")
+        elif self.config.path_way=="TREE_map":  #leaf=2^D feat=2^D-1 attention=2*(2^D-1)
+            #print(f"====== DeTree::__init__ path_map={path_map}")
+            nFeat = nNode            
+            for no in range(nLeaf):
+                path = []
+                for j in reversed(range(self.depth)):                    
+                    left_rigt, node = no%2,level_nodes[j][no//2]
+                    path.append(2*node+left_rigt)      #OBLIVIOUS Tree
+                    no = no//2
+                path.reverse()
+                print(f"\t{no}\tpath={path}")
+                path_map.extend(path)
+            assert max(path_map)<=2*nFeat-1
+            self.path_map = nn.Parameter(torch.tensor(path_map), requires_grad=False)
+            
+        else: # binary codes for mapping between 1-hot vectors and bin indices
+            with torch.no_grad():
+                indices = torch.arange(2 ** self.depth)
+                offsets = 2 ** torch.arange(self.depth)
+                bin_codes = (indices.view(1, -1) // offsets.view(-1, 1) % 2).to(torch.float32)
+                bin_codes_1hot = torch.stack([bin_codes, 1.0 - bin_codes], dim=-1).cuda()
+                self.bin_codes_1hot = nn.Parameter(bin_codes_1hot, requires_grad=False)
+                print("====== DeTree::__init__ bin_codes_1hot={bin_codes_1hot}")
+                # ^-- [depth, 2 ** depth, 2]
 
     def __init__(self, in_features, num_trees,config, flatten_output=True,
                  choice_function=sparsemax, bin_function=sparsemoid,feat_info=None,
@@ -104,7 +150,7 @@ class DeTree(nn.Module):
                  threshold_init_beta=1.0, threshold_init_cutoff=1.0,
                  ):
         """
-        Oblivious Differentiable Sparsemax Trees. http://tinyurl.com/odst-readmore
+        Differentiable Sparsemax Trees. 
         One can drop (sic!) this module anywhere instead of nn.Linear
         :param in_features: number of features in the input tensor
         :param num_trees: number of trees in this layer
@@ -134,12 +180,13 @@ class DeTree(nn.Module):
             All points will be between (0.5 - 0.5 / threshold_init_cutoff) and (0.5 + 0.5 / threshold_init_cutoff)
         """
         super().__init__()
-        response_dim = config.response_dim
         depth = config.depth
         self.config = config
         self.isInitFromData = False
+        self.in_features = in_features
         self.depth, self.num_trees, self.response_dim, self.flatten_output = \
-            depth, num_trees, response_dim, config.flatten_output
+            depth, num_trees, config.response_dim, config.flatten_output
+        
         #self.choice_function, self.bin_function = choice_function, bin_function
         self.choice_function = entmax15
         self.bin_func = "05_01"     #"05_01"        "entmoid15" "softmax"
@@ -149,45 +196,27 @@ class DeTree(nn.Module):
         self.init_choice_func = initialize_selection_logits_
 
         if self.config.leaf_output == "learn_distri":
-            self.response = nn.Parameter(torch.zeros([num_trees, response_dim, 2 ** depth]), requires_grad=True)
+            self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
             initialize_response_(self.response)
         else:
             self.response = None
         self.path_map = None
 
-        self.init_attention(initialize_selection_logits_,in_features, num_trees, depth,feat_info)
+        self.nFeature = depth
+        if self.config.path_way=="TREE_map":
+            self.nFeature = 2**depth-1
+        self.init_attention(initialize_selection_logits_,feat_info)
         self.nAtt = self.feat_attention.numel()  # sparse attention
         self.nzAtt = self.nAtt - self.feat_attention.nonzero().size(0)
         
         self.feature_thresholds = nn.Parameter(
-            torch.full([num_trees, depth], float('nan'), dtype=torch.float32), requires_grad=True
+            torch.full([num_trees, self.nFeature], float('nan'), dtype=torch.float32), requires_grad=True
         )  # nan values will be initialized on first batch (data-aware init)
         self.log_temperatures = nn.Parameter(
-            torch.full([num_trees, depth], float('nan'), dtype=torch.float32), requires_grad=True
+            torch.full([num_trees, self.nFeature], float('nan'), dtype=torch.float32), requires_grad=True
         )
 
-        
-        if self.config.path_way=="OBLIVIOUS_map":
-            nLeaf = 2 ** self.depth
-            path_map,nodes=[],[0,1,2,3,4]
-            for no in range(nLeaf):
-                path = []
-                for j in range(self.depth):                    
-                    left_rigt,node = no%2,nodes[j]
-                    path.append(2*node+left_rigt)      #OBLIVIOUS Tree
-                    no = no//2
-                path_map.extend(path)
-            self.path_map = nn.Parameter(torch.tensor(path_map), requires_grad=False)
-            print("====== DeTree::__init__ path_map={path_map}")
-        else: # binary codes for mapping between 1-hot vectors and bin indices
-            with torch.no_grad():
-                indices = torch.arange(2 ** self.depth)
-                offsets = 2 ** torch.arange(self.depth)
-                bin_codes = (indices.view(1, -1) // offsets.view(-1, 1) % 2).to(torch.float32)
-                bin_codes_1hot = torch.stack([bin_codes, 1.0 - bin_codes], dim=-1).cuda()
-                self.bin_codes_1hot = nn.Parameter(bin_codes_1hot, requires_grad=False)
-                print("====== DeTree::__init__ bin_codes_1hot={bin_codes_1hot}")
-                # ^-- [depth, 2 ** depth, 2]
+        self.InitPathWay()        
 
     def forward(self, input):
         if not self.isInitFromData:
@@ -283,11 +312,11 @@ class DeTree(nn.Module):
 
             # initialize thresholds: sample random percentiles of data
             percentiles_q = 100 * np.random.beta(self.threshold_init_beta, self.threshold_init_beta,
-                                                 size=[self.num_trees, self.depth])
+                                                 size=[self.num_trees, self.nFeature])
             self.feature_thresholds.data[...] = torch.as_tensor(
                 list(map(np.percentile, check_numpy(feature_values.flatten(1, 2).t()), percentiles_q.flatten())),
                 dtype=feature_values.dtype, device=feature_values.device
-            ).view(self.num_trees, self.depth)
+            ).view(self.num_trees, self.nFeature)
 
             # init temperatures: make sure enough data points are in the linear region of sparse-sigmoid
             temperatures = np.percentile(check_numpy(abs(feature_values - self.feature_thresholds)),
@@ -298,10 +327,10 @@ class DeTree(nn.Module):
             self.log_temperatures.data[...] = torch.log(torch.as_tensor(temperatures) + eps)
 
     def __repr__(self):
-        return "{}(F={},T={},D={}, response_dim={}, " \
+        return "{}(F={},f={} T={},D={}, response_dim={}, " \
                "flatten_output={},bin_func={},init_response={},init_choice={})".format(
             self.__class__.__name__, 0 if self.no_attention else self.feat_attention.shape[0],
-            self.num_trees, self.depth, self.response_dim, self.flatten_output,
+            self.nFeature,self.num_trees, self.depth, self.response_dim, self.flatten_output,
             self.bin_func,
             self.init_responce_func.__name__,self.init_choice_func.__name__
         )
