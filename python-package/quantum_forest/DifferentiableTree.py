@@ -11,9 +11,7 @@ from warnings import warn
 
 
 class DeTree(nn.Module):
-    def init_attention(self,init_func, feat_info=None):
-        #f = initialize_selection_logits_.__name__
-        init_func = nn.init.uniform_
+    def init_attention(self, feat_info=None): 
         self.attention_reuse = False       #效果不理想，奇怪        
         self.nGateFuncs = self.num_trees*self.nFeature
         self.nSingle = self.in_features
@@ -37,6 +35,7 @@ class DeTree(nn.Module):
         #only for self.no_attention and weight is None
         self.feat_map = random.choices(population = list(range(self.in_features)),k = self.nGateFuncs) #weights = weight,
         #self.feat_map[0]=1
+        self.init_attention_func=nn.init.eye
         if self.no_attention:
             self.feat_weight = nn.Parameter(torch.Tensor(self.nGateFuncs).uniform_(), requires_grad=True)
             pass
@@ -48,8 +47,11 @@ class DeTree(nn.Module):
             self.feat_attention = nn.Parameter(feat_val, requires_grad=True)
             print(f"===== !!! init_attention: SET {self.nGateFuncs}-featrues to 1 !!!")
         else:
+            #kaiming_uniform_可以加速收敛，但最终结果差不多
+            self.init_attention_func = nn.init.uniform_    #nn.init.kaiming_normal_        #nn.init.uniform_
             feat_val = torch.zeros([self.in_features, self.nGateFuncs])
-            init_func(feat_val)
+            self.init_attention_func(feat_val)
+
             if weight is not None :
                 for i in range(self.nGateFuncs):
                     # print(feat_val[:,i])
@@ -60,7 +62,7 @@ class DeTree(nn.Module):
             self.feat_attention = nn.Parameter( feat_val, requires_grad=True )
         #self.feat_W = nn.Parameter(torch.Tensor(self.in_features).uniform_(), requires_grad=True)
 
-        print(f"====== init_attention f={init_func.__name__} no_attention={self.no_attention}")
+        print(f"====== init_attention f={self.init_attention_func.__name__} no_attention={self.no_attention}")
 
     #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
     def get_attention_value(self,input):
@@ -213,7 +215,6 @@ class DeTree(nn.Module):
         self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
         self.init_responce_func = initialize_response_
-        self.init_choice_func = initialize_selection_logits_
 
         if self.config.leaf_output == "learn_distri":
             self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
@@ -225,7 +226,7 @@ class DeTree(nn.Module):
         self.nFeature = depth
         if self.config.path_way=="TREE_map":
             self.nFeature = 2**depth-1
-        self.init_attention(initialize_selection_logits_,feat_info)
+        self.init_attention(feat_info)
         self.nAtt = self.feat_attention.numel()  # sparse attention
         self.nzAtt = self.nAtt - self.feat_attention.nonzero().size(0)
         
@@ -348,10 +349,11 @@ class DeTree(nn.Module):
 
     def __repr__(self):
         return "{}(F={},f={} T={},D={}, response_dim={}, " \
-               "flatten_output={},bin_func={},init_response={},init_choice={})".format(
+               "init_attention={},flatten_output={},bin_func={},init_response={})".format(
             self.__class__.__name__, 0 if self.no_attention else self.feat_attention.shape[0],
-            self.nFeature,self.num_trees, self.depth, self.response_dim, self.flatten_output,
+            self.nFeature,self.num_trees, self.depth, self.response_dim, 
+            self.init_attention_func.__name__,self.flatten_output,
             self.bin_func,
-            self.init_responce_func.__name__,self.init_choice_func.__name__
+            self.init_responce_func.__name__
         )
 

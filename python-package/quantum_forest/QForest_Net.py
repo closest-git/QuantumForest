@@ -1,3 +1,11 @@
+'''
+@Author: your name
+@Date: 2020-02-14 11:06:23
+@LastEditTime: 2020-02-16 09:45:25
+@LastEditors: Please set LastEditors
+@Description: In User Settings Edit
+@FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
+'''
 import torch.nn as nn
 import seaborn as sns;      sns.set()
 import numpy as np
@@ -11,8 +19,20 @@ class QForest_Net(nn.Module):
         self.layers = nn.ModuleList()
         self.nTree = config.nTree
         self.config = config
+        
         #self.nAtt, self.nzAtt = 0, 0        #sparse attention
-        nFeat = in_features
+        if self.config.data_normal=="NN":       #将来可替换为deepFM
+            self.emb_dims = [in_features,256]   #multilayer未见效果     0.590(差于0.569)
+            #self.embedding = nn.ModuleList([nn.Embedding(m, d) for m, d in emb_szs])
+            nEmb = len(self.emb_dims)-1
+            self.embeddings = nn.ModuleList(
+                [nn.Linear(self.emb_dims[i], self.emb_dims[i + 1]) for i in range(nEmb)] ) 
+            nFeat = self.emb_dims[nEmb]
+            for layer in self.embeddings:
+                nn.init.kaiming_normal_ (layer.weight.data)
+        else:
+            self.embeddings = None
+            nFeat = in_features
         for i in range(config.nLayers):
             if i > 0:
                 nFeat = config.nTree
@@ -26,6 +46,9 @@ class QForest_Net(nn.Module):
         print("====== QForest_Net::__init__")
 
     def forward(self, x):
+        if self.embeddings is not None:
+            for layer in self.embeddings:
+                x = layer(x)
         for layer in self.layers:
             x = layer(x)
         x = x.mean(dim=-1)        #self.pooling(x)

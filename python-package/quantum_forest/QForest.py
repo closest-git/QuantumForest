@@ -31,10 +31,10 @@ class QForest_config:
         self.plot_root = "./results/"
         self.plot_train = False
         self.plot_attention = True
-        self.data_normal = ""       #"Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
+        self.data_normal = "NN"       #"NN"     "Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
         self.leaf_output = "learn_distri"       #"learn_distri"   "Y"
         self.reg_L1 = 1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
-        self.path_way="TREE_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
+        self.path_way="OBLIVIOUS_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
@@ -57,6 +57,8 @@ class QForest_config:
         
         if self.path_way=="TREE_map":
             self.depth = 5;     self.nTree = 1024
+        if self.data_normal == "NN":
+            self.feat_info = ""
 
     def model_info(self):
         return "QF_shallow"
