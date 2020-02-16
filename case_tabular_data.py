@@ -179,7 +179,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         metrics = trainer.train_on_batch(*batch, device=device)
         loss_history.append(metrics['loss'])
         if trainer.step%10==0:
-            print(f"\r============ {trainer.step}\t{metrics['loss']:.5f}\ttime={time.time()-t0:.2f}\t",end="")
+            print(f"\r============ {trainer.step}\t{metrics['loss']:.5f}\ttime={time.time()-t0:.2f}\t", end="\r")
         if trainer.step % report_frequency == 0:
             epoch=epoch+1
             if torch.cuda.is_available():   torch.cuda.empty_cache()

@@ -81,7 +81,9 @@ class DecisionBlock(nn.Sequential):
         return outputs
 
     def AfterEpoch(self,epoch=0):
-        pass
+        for layer in self:
+            if isinstance(layer,DeTree):
+                layer.AfterEpoch(epoch)
 
 class MultiBlock(nn.Module):
     def __init__(self, input_dim, config_0, flatten_output=True, feat_info=None, **kwargs):

@@ -106,7 +106,7 @@ class DeTree(nn.Module):
                     nodes.append(nNode+2*i+1)
             level_nodes.append(nodes)
             uppers = copy.deepcopy(nodes);     nNode+=len(nodes)
-        print(f"====== DeTree::InitPathWay path_map={self.config.path_way} depth={self.depth} nLeaf={nLeaf} nNode={nNode} nFeature={self.nFeature}")
+        print(f"====== DeTree::InitPathWay path_map={self.config.path_way} depth={self.depth} nLeaf={nLeaf} nGatingNode={nNode} nFeature={self.nFeature}")
         
         if self.config.path_way=="OBLIVIOUS_map":
             path_map,nodes=[],list(range(self.depth))
@@ -119,6 +119,7 @@ class DeTree(nn.Module):
                 path_map.extend(path)
             self.path_map = nn.Parameter(torch.tensor(path_map), requires_grad=False)
             print(f"====== DeTree::__init__ path_map={path_map}")
+            #self.AfterEpoch(-1)
         elif self.config.path_way=="TREE_map":  #leaf=2^D feat=2^D-1 attention=2*(2^D-1)
             #print(f"====== DeTree::__init__ path_map={path_map}")
             nFeat = nNode            
@@ -143,6 +144,25 @@ class DeTree(nn.Module):
                 self.bin_codes_1hot = nn.Parameter(bin_codes_1hot, requires_grad=False)
                 print("====== DeTree::__init__ bin_codes_1hot={bin_codes_1hot}")
                 # ^-- [depth, 2 ** depth, 2]
+
+    def AfterEpoch(self,epoch=0):
+        if epoch==0:  
+            return
+        return
+        if self.path_map is not None:
+            path_map = self.path_map.data.cpu()       #.view(-1,self.nFeature)
+            #nPath = path_map.shape[0]
+            feats,f_map = list(range(self.nFeature)),{} 
+            random.shuffle(feats)
+            for i,no in enumerate(feats):
+                f_map[2*i] = 2*no
+                f_map[2*i+1] = 2*no+1
+            print(f"!!!!!! path_map: {path_map[0:16]}...",end="")            
+            path_map.apply_(lambda y: f_map[y])   
+            self.path_map.data = path_map.cuda()
+            print(f"=>{self.path_map.data[0:16]}...")            
+            return
+
 
     def __init__(self, in_features, num_trees,config, flatten_output=True,
                  choice_function=sparsemax, bin_function=sparsemoid,feat_info=None,

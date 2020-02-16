@@ -2,7 +2,7 @@
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
 @LastEditTime : 2020-02-15 17:20:33
-@LastEditors  : Please set LastEditors
+@LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
 '''
@@ -34,7 +34,7 @@ class QForest_config:
         self.data_normal = ""       #"Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
         self.leaf_output = "learn_distri"       #"learn_distri"   "Y"
         self.reg_L1 = 1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
-        self.path_way="OBLIVIOUS_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
+        self.path_way="TREE_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
