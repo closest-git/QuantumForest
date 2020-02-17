@@ -9,15 +9,16 @@ import random
 from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15
 
 class DecisionBlock(nn.Sequential):
-    def __init__(self, input_dim, config, flatten_output=True, feat_info=None, **kwargs):
+    def __init__(self, input_dim, config,hasBN=False, flatten_output=True, feat_info=None, **kwargs):
         super(DecisionBlock, self).__init__()
         self.config = config
         layers = []
         response_dim=config.response_dim
         num_trees = config.nTree
         Module = config.tree_module
+        self.gates_cp = 0
         for i in range(config.num_layers):
-            if config.data_normal == "BN":
+            if hasBN:   #config.data_normal == "BN":
                 layer = nn.BatchNorm1d(input_dim)
                 layers.append(layer)
             layer = Module(input_dim, num_trees, config, flatten_output=True,feat_info=feat_info, **kwargs)
@@ -63,11 +64,14 @@ class DecisionBlock(nn.Sequential):
 
     def forward(self, x):
         nSamp = x.shape[0]
+        self.gates_cp.zero_()
         if self.training and self.input_dropout:
             x = F.dropout(x, self.input_dropout)
         for layer in self:
             layer_inp = x
             x = layer(layer_inp)
+            if isinstance(layer,DeTree):
+                self.gates_cp += layer.gates_cp
         outputs = x
         if self.config.leaf_output == "learn_distri":
             if not self.flatten_output:

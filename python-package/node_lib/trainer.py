@@ -35,6 +35,7 @@ class Trainer(nn.Module):
         self.opt = Optimizer(list(self.model.parameters()), **optimizer_params)
         self.step = 0
         self.n_last_checkpoints = n_last_checkpoints
+        self.isFirstBackward = True
 
         if experiment_name is None:
             experiment_name = 'untitled_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(*time.gmtime()[:5])
@@ -131,14 +132,22 @@ class Trainer(nn.Module):
         self.opt.zero_grad()
         y_output=self.model(x_batch)
         #loss = self.loss_function(y_output, y_batch).mean()         #self.model(x_batch)
+        
+        #if self.model.config.reg_Gate!=0 and self.step%3==1:            
+        #    loss = self.model.gates_cp*self.model.config.reg_Gate
+
         loss = F.mse_loss(y_output, y_batch)
         loss = loss.mean()
         if self.model.config.reg_L1>0:
             all_att = self.model.GetAttentions()
-            reg_L1 = torch.sum(torch.abs(all_att))
-            loss = loss+reg_L1*self.model.config.reg_L1
+            self.model.reg_L1 = torch.sum(torch.abs(all_att))
+            loss = loss+self.model.reg_L1*self.model.config.reg_L1+self.model.gates_cp*self.model.config.reg_Gate
+        #if self.model.config.reg_Gate>0:
+        #    loss = loss+self.model.gates_cp*self.model.config.reg_Gate
+
         #print(f"\t{torch.min(loss)}:{torch.max(loss)}")
-        loss.backward()
+        loss.backward()     #retain_graph=self.isFirstBackward
+        self.isFirstBackward = False
         self.opt.step()
         self.step += 1
         self.writer.add_scalar('train loss', loss.item(), self.step)

@@ -19,10 +19,13 @@ class QForest_Net(nn.Module):
         self.layers = nn.ModuleList()
         self.nTree = config.nTree
         self.config = config
+        self.gates_cp = nn.Parameter(torch.zeros([1]), requires_grad=True)
+        self.reg_L1 = 0
         
         #self.nAtt, self.nzAtt = 0, 0        #sparse attention
         if self.config.data_normal=="NN":       #将来可替换为deepFM
             self.emb_dims = [in_features,256]   #multilayer未见效果     0.590(差于0.569)
+            self.emb_dims = [in_features,128]
             #self.embedding = nn.ModuleList([nn.Embedding(m, d) for m, d in emb_szs])
             nEmb = len(self.emb_dims)-1
             self.embeddings = nn.ModuleList(
@@ -37,8 +40,9 @@ class QForest_Net(nn.Module):
             if i > 0:
                 nFeat = config.nTree
                 feat_info = None
+            hasBN = config.data_normal == "BN" and i > 0
             self.layers.append(
-                DecisionBlock(nFeat, config, flatten_output=False,feat_info=feat_info)
+                DecisionBlock(nFeat, config,hasBN=hasBN, flatten_output=False,feat_info=feat_info)
                 #MultiBlock(nFeat, config, flatten_output=False, feat_info=feat_info)
             )
 
@@ -46,11 +50,13 @@ class QForest_Net(nn.Module):
         print("====== QForest_Net::__init__")
 
     def forward(self, x):
+        self.gates_cp.data.zero_()
         if self.embeddings is not None:
             for layer in self.embeddings:
                 x = layer(x)
         for layer in self.layers:
             x = layer(x)
+            self.gates_cp.data += layer.gates_cp
         x = x.mean(dim=-1)        #self.pooling(x)
         #x = torch.max(x,dim=-1).values
         return x

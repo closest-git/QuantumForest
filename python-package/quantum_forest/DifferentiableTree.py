@@ -9,7 +9,6 @@ from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15
 from .some_utils import check_numpy
 from warnings import warn
 
-
 class DeTree(nn.Module):
     def init_attention(self, feat_info=None): 
         self.attention_reuse = False       #效果不理想，奇怪        
@@ -119,8 +118,9 @@ class DeTree(nn.Module):
                     path.append(2*node+left_rigt)      #OBLIVIOUS Tree
                     no = no//2
                 path_map.extend(path)
+                print(f"\t{no}\tpath={path}")
             self.path_map = nn.Parameter(torch.tensor(path_map), requires_grad=False)
-            print(f"====== DeTree::__init__ path_map={path_map}")
+            #print(f"====== DeTree::__init__ path_map={path_map}")
             #self.AfterEpoch(-1)
         elif self.config.path_way=="TREE_map":  #leaf=2^D feat=2^D-1 attention=2*(2^D-1)
             #print(f"====== DeTree::__init__ path_map={path_map}")
@@ -215,6 +215,7 @@ class DeTree(nn.Module):
         self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
         self.init_responce_func = initialize_response_
+        self.gates_cp = 0
 
         if self.config.leaf_output == "learn_distri":
             self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
@@ -236,6 +237,7 @@ class DeTree(nn.Module):
         self.log_temperatures = nn.Parameter(
             torch.full([num_trees, self.nFeature], float('nan'), dtype=torch.float32), requires_grad=True
         )
+        #self.bins = nn.Parameter(torch.zeros([256,num_trees, self.depth,2], dtype=torch.float32), requires_grad=False)
 
         self.InitPathWay()        
 
@@ -248,6 +250,7 @@ class DeTree(nn.Module):
             return self.forward(input.view(-1, input.shape[-1])).view(*input.shape[:-1], -1)
 
         batch_size = input.shape[0]
+        nLeaf = 2 ** self.depth
         # new input shape: [batch_size, in_features]
         if self.no_attention:
             feature_values = input[:, self.feat_map]  # torch.index_select(input.flatten(), 0, self.feat_select)
@@ -279,6 +282,7 @@ class DeTree(nn.Module):
             bins = (0.5 * threshold_logits + 0.5)
         elif self.bin_func == "":                        #后继乏力(0.630)
             bins = threshold_logits
+        #self.bins.data = bins
 
         # ^--[batch_size, num_trees, depth, 2], approximately binary
         if self.path_map is None:   #too much memory
@@ -286,13 +290,19 @@ class DeTree(nn.Module):
             # ^--[batch_size, num_trees, depth, 2 ** depth]            
         else:
             #each column is a Probability
-            path_ = torch.index_select(bins.flatten(-2,-1),dim=-1,index=self.path_map).view(batch_size, self.num_trees,self.depth,-1) 
-            #path_ = path_.view(batch_size, self.num_trees,self.depth,-1)
+            path_ = torch.index_select(bins.flatten(-2,-1),dim=-1,index=self.path_map).view(batch_size, self.num_trees,self.depth,-1)             
             assert path_.shape[-1]==2 ** self.depth
 
-        response_weights = torch.prod(path_, dim=-2)
-        # ^-- [batch_size, num_trees, 2 ** depth]
-
+        response_weights = torch.prod(path_, dim=-2)       # ^-- [batch_size, num_trees, 2 ** depth]
+        if self.config.reg_Gate!=0:
+            if False:
+                P = torch.sum(response_weights,dim=0)    #nTree,nLeaf
+                P_all = torch.sum(P)
+                alpha=torch.sum(P[:,0:nLeaf//2])/P_all
+                C = -0.5*torch.log(alpha)+0.5*torch.log(1-alpha)
+                self.gates_cp = torch.sum(C)
+            else:
+                self.gates_cp = torch.norm(bins,p=2)/bins.numel()
         if self.config.leaf_output == "learn_distri":
             response = torch.einsum('btl,tcl->btc', response_weights, self.response)
             # ^-- [batch_size, num_trees, distri_dim]
@@ -306,8 +316,7 @@ class DeTree(nn.Module):
         else:
             assert(False)
             return None
-
-        #for i in range(self.num_trees):       response[:,i,:] = response[:,i,:]*self.tree_weight[i]
+        
 
 
 

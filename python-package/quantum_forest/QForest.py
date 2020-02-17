@@ -31,9 +31,10 @@ class QForest_config:
         self.plot_root = "./results/"
         self.plot_train = False
         self.plot_attention = True
-        self.data_normal = "NN"       #"NN"     "Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
+        self.data_normal = ""       #"NN"     "Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
         self.leaf_output = "learn_distri"       #"learn_distri"   "Y"
         self.reg_L1 = 1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
+        self.reg_Gate = 0           
         self.path_way="OBLIVIOUS_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
 
         if data_set=="YEAR":
@@ -55,8 +56,9 @@ class QForest_config:
         elif data_set=="MICROSOFT":
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 2048, 3, 1
         
-        if self.path_way=="TREE_map":
-            self.depth = 5;     self.nTree = 1024
+        if self.path_way=="TREE_map":   #准确率略高，但速度偏慢
+            self.depth = 5;     self.nTree = 1;    self.data_normal = ""#"BN"用处不大啊
+            self.nLayers=1;     #0.5749(2)  0.5753(3)  
         if self.data_normal == "NN":
             self.feat_info = ""
 
