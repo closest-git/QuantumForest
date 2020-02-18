@@ -33,8 +33,8 @@ class QForest_config:
         self.plot_attention = True
         self.data_normal = ""       #"NN"     "Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
         self.leaf_output = "learn_distri"       #"learn_distri"   "Y"
-        self.reg_L1 = 1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
-        self.reg_Gate = 0           
+        self.reg_L1 = 0#1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
+        self.reg_Gate = 1.0e-4       
         self.path_way="OBLIVIOUS_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
 
         if data_set=="YEAR":

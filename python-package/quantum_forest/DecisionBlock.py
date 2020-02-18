@@ -30,12 +30,14 @@ class DecisionBlock(nn.Sequential):
         self.max_features, self.flatten_output = config.max_features, flatten_output
         self.input_dropout = config.input_dropout
 
-    def get_attentions(self):
-        attentions=[]
+    def get_variables(self,var_dic):
         for layer in self:
             if isinstance(layer,DeTree):
-                attentions.append(layer.feat_attention)
-        return attentions
+                if "attention" in var_dic:
+                    var_dic["attention"].append(layer.feat_attention)
+                if "gate_values" in var_dic:
+                    var_dic["gate_values"].append(layer.gate_values)
+        return var_dic
 
     def forward_dense(self, x):
         nSamp = x.shape[0]
@@ -64,14 +66,11 @@ class DecisionBlock(nn.Sequential):
 
     def forward(self, x):
         nSamp = x.shape[0]
-        self.gates_cp.zero_()
         if self.training and self.input_dropout:
             x = F.dropout(x, self.input_dropout)
         for layer in self:
             layer_inp = x
             x = layer(layer_inp)
-            if isinstance(layer,DeTree):
-                self.gates_cp += layer.gates_cp
         outputs = x
         if self.config.leaf_output == "learn_distri":
             if not self.flatten_output:

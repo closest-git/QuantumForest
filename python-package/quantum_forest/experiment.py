@@ -1,0 +1,234 @@
+import os
+import time
+import glob
+import numpy as np
+import torch
+import torch.nn as nn
+
+import torch.nn.functional as F
+
+from .some_utils import get_latest_file,  check_numpy
+#from .nn_utils import to_one_hot
+from collections import OrderedDict
+from copy import deepcopy
+from tensorboardX import SummaryWriter
+
+from sklearn.metrics import roc_auc_score, log_loss
+
+def iterate_minibatches(*tensors, batch_size, shuffle=True, epochs=1,
+                        allow_incomplete=True, callback=lambda x:x):
+    indices = np.arange(len(tensors[0]))
+    upper_bound = int((np.ceil if allow_incomplete else np.floor) (len(indices) / batch_size)) * batch_size
+    epoch = 0
+    while True:
+        if shuffle:
+            np.random.shuffle(indices)
+        for batch_start in callback(range(0, upper_bound, batch_size)):
+            batch_ix = indices[batch_start: batch_start + batch_size]
+            batch = [tensor[batch_ix] for tensor in tensors]
+            yield batch if len(tensors) > 1 else batch[0]
+        epoch += 1
+        if epoch >= epochs:
+            break
+
+
+def process_in_chunks(function, *args, batch_size, out=None, **kwargs):
+    """
+    Computes output by applying batch-parallel function to large data tensor in chunks
+    :param function: a function(*[x[indices, ...] for x in args]) -> out[indices, ...]
+    :param args: one or many tensors, each [num_instances, ...]
+    :param batch_size: maximum chunk size processed in one go
+    :param out: memory buffer for out, defaults to torch.zeros of appropriate size and type
+    :returns: function(data), computed in a memory-efficient way
+    """
+    total_size = args[0].shape[0]
+    first_output = function(*[x[0: batch_size] for x in args])
+    output_shape = (total_size,) + tuple(first_output.shape[1:])
+    if out is None:
+        out = torch.zeros(*output_shape, dtype=first_output.dtype, device=first_output.device,
+                          layout=first_output.layout, **kwargs)
+
+    out[0: batch_size] = first_output
+    for i in range(batch_size, total_size, batch_size):
+        batch_ix = slice(i, min(i + batch_size, total_size))
+        out[batch_ix] = function(*[x[batch_ix] for x in args])
+    return out
+
+class Trainer(nn.Module):
+    def __init__(self, model, loss_function, experiment_name=None, warm_start=False, 
+                 Optimizer=torch.optim.Adam, optimizer_params={}, verbose=False, 
+                 n_last_checkpoints=1, **kwargs):
+        """
+        :type model: torch.nn.Module
+        :param loss_function: the metric to use in trainnig
+        :param experiment_name: a path where all logs and checkpoints are saved
+        :param warm_start: when set to True, loads last checpoint
+        :param Optimizer: function(parameters) -> optimizer
+        :param verbose: when set to True, produces logging information
+        """
+        super().__init__()
+        self.model = model
+        #self.loss_function = loss_function
+        self.verbose = verbose
+        self.opt = Optimizer(list(self.model.parameters()), **optimizer_params)
+        self.step = 0
+        self.n_last_checkpoints = n_last_checkpoints
+        self.isFirstBackward = True
+
+        if experiment_name is None:
+            experiment_name = 'untitled_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(*time.gmtime()[:5])
+            if self.verbose:
+                print('using automatic experiment name: ' + experiment_name)
+
+        if True:
+            self.experiment_path = os.path.join('logs/', experiment_name)
+            if not warm_start and experiment_name != 'debug':
+                assert not os.path.exists(self.experiment_path), 'experiment {} already exists'.format(experiment_name)
+        else:
+            self.experiment_path = os.path.join('logs/', "cys")
+        self.writer = SummaryWriter(self.experiment_path, comment=experiment_name)
+
+        if warm_start:
+            self.load_checkpoint()
+    
+    def save_checkpoint(self, tag=None, path=None, mkdir=True, **kwargs):
+        assert tag is None or path is None, "please provide either tag or path or nothing, not both"
+        if tag is None and path is None:
+            tag = "temp_{}".format(self.step)
+        if path is None:
+            path = os.path.join(self.experiment_path, "checkpoint_{}.pth".format(tag))
+        if mkdir:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+        torch.save(OrderedDict([
+            ('model', self.state_dict(**kwargs)),
+            ('opt', self.opt.state_dict()),
+            ('step', self.step)
+        ]), path)
+        if self.verbose:
+            print("Saved " + path)
+        return path
+
+    def load_checkpoint(self, tag=None, path=None, **kwargs):
+        assert tag is None or path is None, "please provide either tag or path or nothing, not both"
+        if tag is None and path is None:
+            path = get_latest_file(os.path.join(self.experiment_path, 'checkpoint_temp_[0-9]*.pth'))
+        elif tag is not None and path is None:
+            path = os.path.join(self.experiment_path, "checkpoint_{}.pth".format(tag))
+        checkpoint = torch.load(path)
+
+        self.load_state_dict(checkpoint['model'], **kwargs)
+        self.opt.load_state_dict(checkpoint['opt'])
+        self.step = int(checkpoint['step'])
+
+        if self.verbose:
+            print('Loaded ' + path)
+        return self
+
+    def average_checkpoints(self, tags=None, paths=None, out_tag='avg', out_path=None):
+        assert tags is None or paths is None, "please provide either tags or paths or nothing, not both"
+        assert out_tag is not None or out_path is not None, "please provide either out_tag or out_path or both, not nothing"
+        if tags is None and paths is None:
+            paths = self.get_latest_checkpoints(
+                os.path.join(self.experiment_path, 'checkpoint_temp_[0-9]*.pth'), self.n_last_checkpoints)
+        elif tags is not None and paths is None:
+            paths = [os.path.join(self.experiment_path, 'checkpoint_{}.pth'.format(tag)) for tag in tags]
+
+        checkpoints = [torch.load(path) for path in paths]
+        averaged_ckpt = deepcopy(checkpoints[0])
+        for key in averaged_ckpt['model']:
+            values = [ckpt['model'][key] for ckpt in checkpoints]
+            averaged_ckpt['model'][key] = sum(values) / len(values)
+
+        if out_path is None:
+            out_path = os.path.join(self.experiment_path, 'checkpoint_{}.pth'.format(out_tag))
+        torch.save(averaged_ckpt, out_path)
+
+    def get_latest_checkpoints(self, pattern, n_last=None):
+        list_of_files = glob.glob(pattern)
+        assert len(list_of_files) > 0, "No files found: " + pattern
+        return sorted(list_of_files, key=os.path.getctime, reverse=True)[:n_last]
+
+    def remove_old_temp_checkpoints(self, number_ckpts_to_keep=None):
+        if number_ckpts_to_keep is None:
+            number_ckpts_to_keep = self.n_last_checkpoints
+        paths = self.get_latest_checkpoints(os.path.join(self.experiment_path, 'checkpoint_temp_[0-9]*.pth'))
+        paths_to_delete = paths[number_ckpts_to_keep:]
+
+        for ckpt in paths_to_delete:
+            os.remove(ckpt)
+
+    def train_on_batch(self, *batch, device):
+        if False and torch.cuda.is_available():     #need lots of time!!!
+            torch.cuda.empty_cache()
+            #mem_info = torch.cuda.memory_stats(device=None)
+            #print(mem_info)
+        x_batch, y_batch = batch
+        x_batch = torch.as_tensor(x_batch, device=device)
+        y_batch = torch.as_tensor(y_batch, device=device)
+        self.model.config.y_batch = y_batch
+        self.model.train()
+        self.opt.zero_grad()
+        y_output=self.model(x_batch)
+        #loss = self.loss_function(y_output, y_batch).mean()         #self.model(x_batch)
+        
+        #if self.model.config.reg_Gate!=0 and self.step%3==1:            
+        #    loss = self.model.gates_cp*self.model.config.reg_Gate
+
+        loss = F.mse_loss(y_output, y_batch)
+        loss = loss.mean()
+        loss += self.model.Regularization()
+        
+
+        #print(f"\t{torch.min(loss)}:{torch.max(loss)}")
+        loss.backward()     #retain_graph=self.isFirstBackward
+        self.isFirstBackward = False
+        self.opt.step()
+        self.step += 1
+        self.writer.add_scalar('train loss', loss.item(), self.step)
+        metric = {'loss': loss.item()}
+        del loss
+        return metric
+
+    def evaluate_classification_error(self, X_test, y_test, device, batch_size=4096):
+        X_test = torch.as_tensor(X_test, device=device)
+        y_test = check_numpy(y_test)
+        self.model.train(False)
+        with torch.no_grad():
+            logits = process_in_chunks(self.model, X_test, batch_size=batch_size)
+            logits = check_numpy(logits)
+            error_rate = (y_test != np.argmax(logits, axis=1)).mean()
+        return error_rate
+
+    def evaluate_mse(self, X_test, y_test, device, batch_size=4096):
+        X_test = torch.as_tensor(X_test, device=device)
+        y_test = check_numpy(y_test)
+        self.model.train(False)
+        with torch.no_grad():
+            prediction = process_in_chunks(self.model, X_test, batch_size=batch_size)
+            prediction = check_numpy(prediction)
+            error_rate = ((y_test - prediction) ** 2).mean()
+        if torch.cuda.is_available():   
+            torch.cuda.empty_cache()
+        return error_rate
+    
+    def evaluate_auc(self, X_test, y_test, device, batch_size=512):
+        X_test = torch.as_tensor(X_test, device=device)
+        y_test = check_numpy(y_test)
+        self.model.train(False)
+        with torch.no_grad():
+            logits = F.softmax(process_in_chunks(self.model, X_test, batch_size=batch_size), dim=1)
+            logits = check_numpy(logits)
+            y_test = torch.tensor(y_test)
+            auc = roc_auc_score(check_numpy(to_one_hot(y_test)), logits)
+        return auc
+    
+    def evaluate_logloss(self, X_test, y_test, device, batch_size=512):
+        X_test = torch.as_tensor(X_test, device=device)
+        y_test = check_numpy(y_test)
+        self.model.train(False)
+        with torch.no_grad():
+            logits = F.softmax(process_in_chunks(self.model, X_test, batch_size=batch_size), dim=1)
+            logits = check_numpy(logits)
+            y_test = torch.tensor(y_test)
+            logloss = log_loss(check_numpy(to_one_hot(y_test)), logits)
+        return logloss

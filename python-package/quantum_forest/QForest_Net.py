@@ -19,8 +19,9 @@ class QForest_Net(nn.Module):
         self.layers = nn.ModuleList()
         self.nTree = config.nTree
         self.config = config
-        self.gates_cp = nn.Parameter(torch.zeros([1]), requires_grad=True)
-        self.reg_L1 = 0
+        #self.gates_cp = nn.Parameter(torch.zeros([1]), requires_grad=True)
+        self.reg_L1 = 0.
+        self.reg_L2 = 0.
         
         #self.nAtt, self.nzAtt = 0, 0        #sparse attention
         if self.config.data_normal=="NN":       #将来可替换为deepFM
@@ -50,31 +51,48 @@ class QForest_Net(nn.Module):
         print("====== QForest_Net::__init__")
 
     def forward(self, x):
-        self.gates_cp.data.zero_()
+        #self.gates_cp.data.zero_()
         if self.embeddings is not None:
             for layer in self.embeddings:
                 x = layer(x)
         for layer in self.layers:
             x = layer(x)
-            self.gates_cp.data += layer.gates_cp
+            #self.gates_cp.data += layer.gates_cp
         x = x.mean(dim=-1)        #self.pooling(x)
         #x = torch.max(x,dim=-1).values
         return x
     
-    def GetAttentions(self,isCat=True):
-        attentions=[]
+    def Regularization(self):
+        dict_val = self.get_variables({"attention":[],"gate_values":[]})
+        reg,l1,l2 = 0,0,0
+        for att in dict_val["attention"]:
+            a = torch.sum(torch.abs(att))/att.numel()
+            l1 = l1+a
+        self.reg_L1 = l1  
+        reg = self.reg_L1*self.config.reg_L1
+        for gate_values in dict_val["gate_values"]:
+            a = torch.sum(torch.pow(gate_values, 2))/gate_values.numel()
+            l2 = l2+a
+        self.reg_L2 = l2       
+        if self.config.reg_Gate>0:
+            reg = reg+self.reg_L2*self.config.reg_Gate 
+        return reg
+    
+    def get_variables(self,var_dic):
         for layer in self.layers:
-            for att in layer.get_attentions():
-                attentions.append(att)
-        all_att = torch.cat(attentions)
-        return all_att
+            var_dic = layer.get_variables(var_dic)
+                #attentions.append(att)
+        #all_att = torch.cat(attentions)
+        return var_dic
 
     def AfterEpoch(self, isBetter=False, epoch=0, accu=0):
+        return
+
         attentions=[]
         for layer in self.layers:
             #self.nAtt, self.nzAtt = self.nAtt+layer.nAtt, self.nzAtt+layer.nzAtt
             layer.AfterEpoch(epoch)
-            for att in layer.get_attentions():
+            for att,_ in layer.get_variables():
                 attentions.append(att.data.detach().cpu().numpy())
         attention = np.concatenate(attentions)  #.reshape(-1)
         self.nAtt = attention.size  # sparse attention

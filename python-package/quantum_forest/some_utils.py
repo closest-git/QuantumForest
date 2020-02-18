@@ -5,7 +5,7 @@ import torch
 import sys
 import os
 import psutil
-
+import glob
 
 
 def split__sections(dim_0,nClass):
@@ -118,3 +118,8 @@ def OnInitInstance(seed=0):
     seed_everything(seed)
     gpu_device = pytorch_env()
     return gpu_device
+
+def get_latest_file(pattern):
+    list_of_files = glob.glob(pattern) # * means all if need specific format then *.csv
+    assert len(list_of_files) > 0, "No files found: " + pattern
+    return max(list_of_files, key=os.path.getctime)

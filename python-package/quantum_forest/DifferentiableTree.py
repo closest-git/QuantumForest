@@ -215,7 +215,7 @@ class DeTree(nn.Module):
         self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
         self.init_responce_func = initialize_response_
-        self.gates_cp = 0
+        self.gate_values = 0
 
         if self.config.leaf_output == "learn_distri":
             self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
@@ -237,7 +237,6 @@ class DeTree(nn.Module):
         self.log_temperatures = nn.Parameter(
             torch.full([num_trees, self.nFeature], float('nan'), dtype=torch.float32), requires_grad=True
         )
-        #self.bins = nn.Parameter(torch.zeros([256,num_trees, self.depth,2], dtype=torch.float32), requires_grad=False)
 
         self.InitPathWay()        
 
@@ -269,28 +268,25 @@ class DeTree(nn.Module):
         # ^--[batch_size, num_trees, depth, 2]
 
         #RESPONSE_WEIGHTS 1)choice at each level of OTree 2) 3)c1*c2*c3*c4*c5 for each [leaf,tree,sample]
-        #bins = self.bin_function(threshold_logits)
         if self.bin_func=="entmoid15":                   #0.68477
-            bins = entmoid15(threshold_logits)
+            gate_values = entmoid15(threshold_logits)
         elif self.bin_func=="05_01":                     #0.67855
-            bins = (0.5 * threshold_logits + 0.5)
-            #bins = bins.clamp_(0, 1)
-            bins = bins.clamp_(-0.5, 1.5)
+            gate_values = (0.5 * threshold_logits + 0.5)
+            gate_values = gate_values.clamp_(-0.5, 1.5)       #(0, 1)
         elif self.bin_func == "softmax":
-            bins = F.softmax(threshold_logits,dim=-1)
+            gate_values = F.softmax(threshold_logits,dim=-1)
         elif self.bin_func == "05":                      #后继乏力(0.629)
-            bins = (0.5 * threshold_logits + 0.5)
+            gate_values = (0.5 * threshold_logits + 0.5)
         elif self.bin_func == "":                        #后继乏力(0.630)
-            bins = threshold_logits
-        #self.bins.data = bins
-
+            gate_values = threshold_logits
+        self.gate_values = gate_values
         # ^--[batch_size, num_trees, depth, 2], approximately binary
         if self.path_map is None:   #too much memory
-            path_ = torch.einsum('btds,dcs->btdc', bins, self.bin_codes_1hot)
+            path_ = torch.einsum('btds,dcs->btdc', gate_values, self.bin_codes_1hot)
             # ^--[batch_size, num_trees, depth, 2 ** depth]            
         else:
             #each column is a Probability
-            path_ = torch.index_select(bins.flatten(-2,-1),dim=-1,index=self.path_map).view(batch_size, self.num_trees,self.depth,-1)             
+            path_ = torch.index_select(gate_values.flatten(-2,-1),dim=-1,index=self.path_map).view(batch_size, self.num_trees,self.depth,-1)             
             assert path_.shape[-1]==2 ** self.depth
 
         response_weights = torch.prod(path_, dim=-2)       # ^-- [batch_size, num_trees, 2 ** depth]
@@ -300,9 +296,10 @@ class DeTree(nn.Module):
                 P_all = torch.sum(P)
                 alpha=torch.sum(P[:,0:nLeaf//2])/P_all
                 C = -0.5*torch.log(alpha)+0.5*torch.log(1-alpha)
-                self.gates_cp = torch.sum(C)
+                #self.gates_cp = torch.sum(C)
             else:
-                self.gates_cp = torch.norm(bins,p=2)/bins.numel()
+                pass
+                #self.gates_cp = torch.norm(self.gate_values,p=2)/self.gate_values.numel()
         if self.config.leaf_output == "learn_distri":
             response = torch.einsum('btl,tcl->btc', response_weights, self.response)
             # ^-- [batch_size, num_trees, distri_dim]
