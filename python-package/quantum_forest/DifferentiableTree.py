@@ -285,11 +285,13 @@ class DeTree(nn.Module):
             path_ = torch.einsum('btds,dcs->btdc', gate_values, self.bin_codes_1hot)
             # ^--[batch_size, num_trees, depth, 2 ** depth]            
         else:
-            #each column is a Probability
+            #each column is a Probability 内存大户，1024*2048*5*32=320M个float
             path_ = torch.index_select(gate_values.flatten(-2,-1),dim=-1,index=self.path_map).view(batch_size, self.num_trees,self.depth,-1)             
             assert path_.shape[-1]==2 ** self.depth
 
         response_weights = torch.prod(path_, dim=-2)       # ^-- [batch_size, num_trees, 2 ** depth]
+        #if not path_.requires_grad and torch.cuda.is_available:
+        #    del path_;      torch.cuda.empty_cache()
         if self.config.reg_Gate!=0:
             if False:
                 P = torch.sum(response_weights,dim=0)    #nTree,nLeaf
@@ -301,8 +303,7 @@ class DeTree(nn.Module):
                 pass
                 #self.gates_cp = torch.norm(self.gate_values,p=2)/self.gate_values.numel()
         if self.config.leaf_output == "learn_distri":
-            response = torch.einsum('btl,tcl->btc', response_weights, self.response)
-            # ^-- [batch_size, num_trees, distri_dim]
+            response = torch.einsum('btl,tcl->btc', response_weights, self.response)            # ^-- [batch_size, num_trees, distri_dim]
             return response.flatten(1, 2) if self.flatten_output else response
         elif self.config.leaf_output == "Y":        #有问题，如何validate?
             y_batch = self.config.y_batch
@@ -354,10 +355,10 @@ class DeTree(nn.Module):
             self.log_temperatures.data[...] = torch.log(torch.as_tensor(temperatures) + eps)
 
     def __repr__(self):
-        return "{}(F={},f={} T={},D={}, response_dim={}, " \
+        return "{}(F={},f={},B={}, T={},D={}, response_dim={}, " \
                "init_attention={},flatten_output={},bin_func={},init_response={})".format(
             self.__class__.__name__, 0 if self.no_attention else self.feat_attention.shape[0],
-            self.nFeature,self.num_trees, self.depth, self.response_dim, 
+            self.nFeature,self.config.batch_size,self.num_trees, self.depth, self.response_dim, 
             self.init_attention_func.__name__,self.flatten_output,
             self.bin_func,
             self.init_responce_func.__name__

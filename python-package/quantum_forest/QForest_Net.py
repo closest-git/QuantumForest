@@ -58,6 +58,7 @@ class QForest_Net(nn.Module):
         for layer in self.layers:
             x = layer(x)
             #self.gates_cp.data += layer.gates_cp
+        self.Regularization()       #统计Regularization
         x = x.mean(dim=-1)        #self.pooling(x)
         #x = torch.max(x,dim=-1).values
         return x
@@ -68,12 +69,12 @@ class QForest_Net(nn.Module):
         for att in dict_val["attention"]:
             a = torch.sum(torch.abs(att))/att.numel()
             l1 = l1+a
-        self.reg_L1 = l1  
+        self.reg_L1 = l1
         reg = self.reg_L1*self.config.reg_L1
         for gate_values in dict_val["gate_values"]:
             a = torch.sum(torch.pow(gate_values, 2))/gate_values.numel()
             l2 = l2+a
-        self.reg_L2 = l2       
+        self.reg_L2 = l2     
         if self.config.reg_Gate>0:
             reg = reg+self.reg_L2*self.config.reg_Gate 
         return reg

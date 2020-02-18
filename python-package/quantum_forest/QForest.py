@@ -34,8 +34,8 @@ class QForest_config:
         self.data_normal = ""       #"NN"     "Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
         self.leaf_output = "learn_distri"       #"learn_distri"   "Y"
         self.reg_L1 = 0#1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
-        self.reg_Gate = 1.0e-4       
-        self.path_way="OBLIVIOUS_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
+        self.reg_Gate = 0 
+        self.path_way="TREE_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
@@ -50,14 +50,14 @@ class QForest_config:
             self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 6144, 3  # 0.5895
             self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 2048, 3  # 0.5913->0.5892(maxout)
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 2048, 3, 1  #
-            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 2048, 3, 1  #for BN
+            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 2048, 3, 1  #for BN
             #nLayers 4-0.58854  3-0.58982   2-0.58769
             #response_dim=  5-0.5910;  3-0.5913
         elif data_set=="MICROSOFT":
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 2048, 3, 1
         
         if self.path_way=="TREE_map":   #准确率略高，但速度偏慢
-            self.depth = 5;     self.nTree = 1;    self.data_normal = ""#"BN"用处不大啊
+            self.depth = 4;     self.nTree = 2048;    self.data_normal = ""#"BN"用处不大啊
             self.nLayers=1;     #0.5749(2)  0.5753(3)  
         if self.data_normal == "NN":
             self.feat_info = ""

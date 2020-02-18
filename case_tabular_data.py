@@ -154,13 +154,13 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     from qhoptim.pyt import QHAdam
     #weight_decay的值需要反复适配       如取1.0e-6 还可以  0.61142-0.58948
     optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':0.002 }
-    trainer = node_lib.Trainer(
+    trainer = quantum_forest.Trainer(
         model=model, loss_function=F.mse_loss,
         experiment_name=config.experiment,
         warm_start=False,
         Optimizer=QHAdam,
         optimizer_params=optimizer_params,
-        verbose=True,
+        verbose=False,      #True
         n_last_checkpoints=5
     )
     from IPython.display import clear_output
@@ -169,6 +169,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     best_step_mse = 0
     early_stopping_rounds = 3000
     report_frequency = 1000
+    eval_batch_size = 512 if config.path_way=="TREE_map" else 1024
 
     print(f"trainer.model={trainer.model}\ntrainer.opt={trainer.opt}")
     model.AfterEpoch(isBetter=True, epoch=0)
@@ -179,7 +180,8 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         metrics = trainer.train_on_batch(*batch, device=device)
         loss_history.append(metrics['loss'])
         if trainer.step%10==0:
-            print(f"\r============ {trainer.step}\t{metrics['loss']:.5f}\tL1={model.reg_L1:.2f}\tL2={model.gates_cp.item():.2f}\ttime={time.time()-t0:.2f}\t"
+            print(f"\r============ {trainer.step}\t{metrics['loss']:.5f}\tL1=[{model.reg_L1:.4g}*{config.reg_L1}]"
+            f"\tL2=[{model.reg_L2:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
             ,end="")
         if trainer.step % report_frequency == 0:
             epoch=epoch+1
@@ -187,8 +189,8 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             trainer.save_checkpoint()
             trainer.average_checkpoints(out_tag='avg')
             trainer.load_checkpoint(tag='avg')
-            mse = trainer.evaluate_mse(
-                data.X_valid, data.y_valid, device=device, batch_size=1024)
+            dict_info = trainer.evaluate_mse(data.X_valid, data.y_valid, device=device, batch_size=eval_batch_size)
+            mse = dict_info["mse"]
 
             model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
             if mse < best_mse:
@@ -215,8 +217,9 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                     plt.show()
             else:
                 visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
-
-            print(f"loss_{trainer.step}\t{metrics['loss']:.5f}\tVal MSE:{mse:.5f}" )
+            reg_Gate = dict_info["reg_Gate"] 
+            print(f"\nloss_{trainer.step}\t{metrics['loss']:.5f}\treg_Gate:{reg_Gate:.4g}\tVal MSE:{mse:.5f}" )   
+                     
         if trainer.step>50000:
             break
         if trainer.step > best_step_mse + early_stopping_rounds:
@@ -228,8 +231,10 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         if torch.cuda.is_available():  torch.cuda.empty_cache()
         trainer.load_checkpoint(tag='best_mse')
         t0=time.time()
-        mse = trainer.evaluate_mse(data.X_test, data.y_test, device=device, batch_size=1024)
-        print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} time={time.time()-t0:.2f}' )
+        dict_info = trainer.evaluate_mse(data.X_test, data.y_test, device=device, batch_size=eval_batch_size)
+        mse = dict_info["mse"]
+        reg_Gate = dict_info["reg_Gate"]
+        print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} \treg_Gate:{reg_Gate:.4g}time={time.time()-t0:.2f}' )
         best_mse = mse
     return best_mse,mse
 
