@@ -13,4 +13,5 @@ from .some_utils import *
 from .DifferentiableTree import *
 from .QForest_Net import *
 from .experiment import *
+from .LinearRegressor import *
 

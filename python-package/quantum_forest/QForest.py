@@ -59,6 +59,7 @@ class QForest_config:
         if self.path_way=="TREE_map":   #准确率略高，但速度偏慢
             self.depth = 4;     self.nTree = 2048;    self.data_normal = ""#"BN"用处不大啊
             self.nLayers=1;     #0.5749(2)  0.5753(3)  
+            self.response_dim = 3;  #0.5651 0.5654(5)
         if self.data_normal == "NN":
             self.feat_info = ""
 

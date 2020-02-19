@@ -128,6 +128,14 @@ def dump_model_params(model):
 
 
 def NODE_test(data,fold_n,config,visual=None,feat_info=None):
+    isTryLR = True
+    if isTryLR:
+        LinearRgressor = quantum_forest.Linear_Regressor({'cascade':"ridge"})
+        y_New = LinearRgressor.BeforeFit((data.X_train, data.y_train),[(data.X_valid, data.y_valid),(data.X_test, data.y_test)])
+        YY_train = y_New[0]
+        YY_valid,YY_test = y_New[1],y_New[2]
+    else:
+        YY_train,YY_valid,YY_test = data.y_train, data.y_valid, data.y_test
     #print(f"======  NODE_test depth={depth},batch={batch_size},nTree={nTree}\n")
     print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} \n======  config={config}\n")
     in_features = data.X_train.shape[1]
@@ -153,7 +161,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
 
     from qhoptim.pyt import QHAdam
     #weight_decay的值需要反复适配       如取1.0e-6 还可以  0.61142-0.58948
-    optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':0.002 }
+    optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':config.lr_base }
     trainer = quantum_forest.Trainer(
         model=model, loss_function=F.mse_loss,
         experiment_name=config.experiment,
@@ -174,13 +182,12 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     print(f"trainer.model={trainer.model}\ntrainer.opt={trainer.opt}")
     model.AfterEpoch(isBetter=True, epoch=0)
     epoch,t0=0,time.time()
-    for batch in node_lib.iterate_minibatches(data.X_train, data.y_train, batch_size=config.batch_size,
-                                         shuffle=True, epochs=float('inf')):
-
+    for batch in node_lib.iterate_minibatches(data.X_train, YY_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
         metrics = trainer.train_on_batch(*batch, device=device)
         loss_history.append(metrics['loss'])
         if trainer.step%10==0:
-            print(f"\r============ {trainer.step}\t{metrics['loss']:.5f}\tL1=[{model.reg_L1:.4g}*{config.reg_L1}]"
+            symbol = "^" if isTryLR else ""
+            print(f"\r============ {trainer.step}{symbol}\t{metrics['loss']:.5f}\tL1=[{model.reg_L1:.4g}*{config.reg_L1}]"
             f"\tL2=[{model.reg_L2:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
             ,end="")
         if trainer.step % report_frequency == 0:
@@ -189,8 +196,10 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             trainer.save_checkpoint()
             trainer.average_checkpoints(out_tag='avg')
             trainer.load_checkpoint(tag='avg')
-            dict_info = trainer.evaluate_mse(data.X_valid, data.y_valid, device=device, batch_size=eval_batch_size)
-            mse = dict_info["mse"]
+            dict_info,prediction = trainer.evaluate_mse(data.X_valid, YY_valid, device=device, batch_size=eval_batch_size)
+            if isTryLR:
+                prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
+            mse = ((data.y_valid - prediction) ** 2).mean()
 
             model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
             if mse < best_mse:
@@ -231,8 +240,11 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         if torch.cuda.is_available():  torch.cuda.empty_cache()
         trainer.load_checkpoint(tag='best_mse')
         t0=time.time()
-        dict_info = trainer.evaluate_mse(data.X_test, data.y_test, device=device, batch_size=eval_batch_size)
-        mse = dict_info["mse"]
+        dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=device, batch_size=eval_batch_size)
+        if isTryLR:
+            prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
+        mse = ((data.y_test - prediction) ** 2).mean()
+        #mse = dict_info["mse"]
         reg_Gate = dict_info["reg_Gate"]
         print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} \treg_Gate:{reg_Gate:.4g}time={time.time()-t0:.2f}' )
         best_mse = mse
@@ -251,8 +263,12 @@ def Fold_learning(fold_n,data,config,visual):
         else:
             feat_info = None
         accu,_ = NODE_test(data,fold_n,config,visual,feat_info)
-    else:
+    elif config.model=="GBDT":
         accu,_ = GBDT_test(data,fold_n)
+    else:        #"LinearRegressor"    
+        model = quantum_forest.Linear_Regressor({'cascade':"ridge"})
+        accu,_ = model.fit((data.X_train, data.y_train),[(data.X_test, data.y_test)])
+
     print(f"\n======\n====== Fold_{fold_n}\tACCURACY={accu:.5f},time={time.time() - t0:.2f} ====== \n======\n")
     return
 
@@ -263,7 +279,7 @@ if __name__ == "__main__":
     random_state = 42
     quantum_forest.OnInitInstance(random_state)
 
-    config.model="QForest"      #"QForest"            "GBDT"
+    config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"    
     if dataset=="YAHOO" or dataset=="MICROSOFT":
         config,visual = InitExperiment(config, 0)
         data.onFold(0,config,pkl_path=f"{data_root}{dataset}/FOLD_Quantile_.pickle")

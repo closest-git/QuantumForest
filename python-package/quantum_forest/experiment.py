@@ -210,11 +210,11 @@ class Trainer(nn.Module):
         with torch.no_grad():
             prediction,dict_info = process_in_chunks(self.model, X_test, batch_size=batch_size)
             prediction = check_numpy(prediction)
-            error_rate = ((y_test - prediction) ** 2).mean()
+            error_rate = ((y_test - prediction) ** 2).mean()    
         if torch.cuda.is_available():   
             torch.cuda.empty_cache()
         dict_info["mse"] = error_rate
-        return dict_info
+        return dict_info,prediction
     
     def evaluate_auc(self, X_test, y_test, device, batch_size=512):
         X_test = torch.as_tensor(X_test, device=device)
