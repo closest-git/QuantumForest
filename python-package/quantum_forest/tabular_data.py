@@ -103,7 +103,7 @@ class TabularDataset:
                 print(f"====== TabularDataset::Fold_{fold}......")
             mu, std = self.y_train.mean(), self.y_train.std()
             print("onFold:\tmean = %.5f, std = %.5f" % (mu, std))
-            if False:
+            if False:   #不方便对比，应删除
                 self.y_train = ((self.y_train - mu) / std).astype(np.float32)
                 self.y_valid = ((self.y_valid - mu) / std).astype(np.float32)
                 if self.y_test is not None:     self.y_test = ((self.y_test - mu) / std).astype(np.float32)

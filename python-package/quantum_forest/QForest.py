@@ -36,11 +36,13 @@ class QForest_config:
         self.reg_L1 = 0#1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
         self.reg_Gate = 0 
         self.path_way="TREE_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
+        self.cascade_LR = False
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
             self.depth, self.batch_size, self.nTree = 5, 256, 2048  # 0.619
             # depth, batch_size, nTree = 7, 256, 512             #区别不大，而且有显存泄漏
+            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 2048, 3, 1
         elif data_set=="YAHOO":
             #反复测试 self.response_dim=5要优于3
             self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 2048,5
@@ -53,13 +55,14 @@ class QForest_config:
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 2048, 3, 1  #for BN
             #nLayers 4-0.58854  3-0.58982   2-0.58769
             #response_dim=  5-0.5910;  3-0.5913
+            if self.path_way=="TREE_map":   #准确率略高，但速度偏慢
+                self.depth = 4;     self.nTree = 2048;    self.data_normal = ""#"BN"用处不大啊
+                self.nLayers=1;     #0.5749(2)  0.5753(3)  
+                self.response_dim = 3;  #0.5651 0.5654(5)
         elif data_set=="MICROSOFT":
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 2048, 3, 1
         
-        if self.path_way=="TREE_map":   #准确率略高，但速度偏慢
-            self.depth = 4;     self.nTree = 2048;    self.data_normal = ""#"BN"用处不大啊
-            self.nLayers=1;     #0.5749(2)  0.5753(3)  
-            self.response_dim = 3;  #0.5651 0.5654(5)
+        
         if self.data_normal == "NN":
             self.feat_info = ""
 

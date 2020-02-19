@@ -25,7 +25,8 @@ from sklearn.model_selection import KFold
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
-dataset = "YAHOO"
+#dataset = "YAHOO"
+dataset = "YEAR"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -128,8 +129,7 @@ def dump_model_params(model):
 
 
 def NODE_test(data,fold_n,config,visual=None,feat_info=None):
-    isTryLR = True
-    if isTryLR:
+    if config.cascade_LR:
         LinearRgressor = quantum_forest.Linear_Regressor({'cascade':"ridge"})
         y_New = LinearRgressor.BeforeFit((data.X_train, data.y_train),[(data.X_valid, data.y_valid),(data.X_test, data.y_test)])
         YY_train = y_New[0]
@@ -137,7 +137,9 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     else:
         YY_train,YY_valid,YY_test = data.y_train, data.y_valid, data.y_test
     #print(f"======  NODE_test depth={depth},batch={batch_size},nTree={nTree}\n")
-    print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} \n======  config={config}\n")
+    mean,std = YY_train.mean(), YY_train.std()
+    config.mean,config.std = mean,std
+    print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} mean={mean} std={std}\n======  config={config}\n")
     in_features = data.X_train.shape[1]
     #config.tree_module = node_lib.ODST
     config.tree_module = quantum_forest.DeTree
@@ -186,7 +188,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         metrics = trainer.train_on_batch(*batch, device=device)
         loss_history.append(metrics['loss'])
         if trainer.step%10==0:
-            symbol = "^" if isTryLR else ""
+            symbol = "^" if config.cascade_LR else ""
             print(f"\r============ {trainer.step}{symbol}\t{metrics['loss']:.5f}\tL1=[{model.reg_L1:.4g}*{config.reg_L1}]"
             f"\tL2=[{model.reg_L2:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
             ,end="")
@@ -197,7 +199,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             trainer.average_checkpoints(out_tag='avg')
             trainer.load_checkpoint(tag='avg')
             dict_info,prediction = trainer.evaluate_mse(data.X_valid, YY_valid, device=device, batch_size=eval_batch_size)
-            if isTryLR:
+            if config.cascade_LR:
                 prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
             mse = ((data.y_valid - prediction) ** 2).mean()
 
@@ -241,7 +243,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         trainer.load_checkpoint(tag='best_mse')
         t0=time.time()
         dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=device, batch_size=eval_batch_size)
-        if isTryLR:
+        if config.cascade_LR:
             prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
         mse = ((data.y_test - prediction) ** 2).mean()
         #mse = dict_info["mse"]
@@ -296,8 +298,9 @@ if __name__ == "__main__":
             train_index=np.concatenate([index_sets[(fold_n+2)%nFold],index_sets[(fold_n+3)%nFold],index_sets[(fold_n+4)%nFold]])
             print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
 
-            data.onFold(fold_n,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{data_root}{dataset}/FOLD_{fold_n}.pickle")
+            data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{data_root}{dataset}/FOLD_{fold_n}.pickle")
             Fold_learning(fold_n,data,config,visual)
+            
 
 
 

@@ -215,11 +215,12 @@ class DeTree(nn.Module):
         self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
         self.init_responce_func = initialize_response_
+        self.response_mean,self.response_std = config.mean, config.std
         self.gate_values = 0
 
         if self.config.leaf_output == "learn_distri":
             self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
-            initialize_response_(self.response)
+            initialize_response_(self.response,mean=self.response_mean,std=self.response_std)
         else:
             self.response = None
         self.path_map = None
@@ -356,11 +357,11 @@ class DeTree(nn.Module):
 
     def __repr__(self):
         return "{}(F={},f={},B={}, T={},D={}, response_dim={}, " \
-               "init_attention={},flatten_output={},bin_func={},init_response={})".format(
+               "init_attention={},flatten_output={},bin_func={},init_response=[{},{:.3f},{:.3f}])".format(
             self.__class__.__name__, 0 if self.no_attention else self.feat_attention.shape[0],
             self.nFeature,self.config.batch_size,self.num_trees, self.depth, self.response_dim, 
             self.init_attention_func.__name__,self.flatten_output,
             self.bin_func,
-            self.init_responce_func.__name__
+            self.init_responce_func.__name__,self.response_mean,self.response_std
         )
 
