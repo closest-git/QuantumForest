@@ -38,6 +38,15 @@ class DecisionBlock(nn.Sequential):
                 if "gate_values" in var_dic:
                     var_dic["gate_values"].append(layer.gate_values)
         return var_dic
+    
+    def freeze_some_params(self,freeze_info):
+        requires_grad = freeze_info["requires_grad"]
+        for layer in self:
+            if isinstance(layer,DeTree):
+                layer.feat_attention.requires_grad = requires_grad
+                layer.feature_thresholds.requires_grad = requires_grad
+                layer.log_temperatures.requires_grad = requires_grad
+
 
     def forward_dense(self, x):
         nSamp = x.shape[0]

@@ -87,6 +87,7 @@ class QForest_Net(nn.Module):
         return var_dic
 
     def AfterEpoch(self, isBetter=False, epoch=0, accu=0):
+        #trainer.opt = Optimizer(filter(lambda p: p.requires_grad, self.model.parameters()), **optimizer_params)
         return
 
         attentions=[]
@@ -114,5 +115,10 @@ class QForest_Net(nn.Module):
                 plt.grid(b=None)
                 plt.show()
         return
+    
+    def freeze_some_params(self,freeze_info):
+        for layer in self.layers:
+            layer.freeze_some_params(freeze_info)
+
 
 

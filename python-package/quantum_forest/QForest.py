@@ -37,6 +37,7 @@ class QForest_config:
         self.reg_Gate = 0 
         self.path_way="TREE_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
         self.cascade_LR = False
+        self.average_training = True   #True不合适，难以和其它模块一起训练
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)

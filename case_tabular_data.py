@@ -25,8 +25,8 @@ from sklearn.model_selection import KFold
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
-#dataset = "YAHOO"
-dataset = "YEAR"
+dataset = "YAHOO"
+#dataset = "YEAR"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -118,17 +118,8 @@ def GBDT_test(data,fold_n):
         print(f'====== Best step: test={data.X_test.shape} ACCU@Test={acc_:.5f}')
     return acc_,acc_train
 
-def dump_model_params(model):
-    nzParams = 0
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            nzParams += param.nelement()
-            print(f"\t{name}={param.nelement()}")
-    print(f"========All parameters={nzParams}")
-    return nzParams
-
-
 def NODE_test(data,fold_n,config,visual=None,feat_info=None):
+    config.device = device
     if config.cascade_LR:
         LinearRgressor = quantum_forest.Linear_Regressor({'cascade':"ridge"})
         y_New = LinearRgressor.BeforeFit((data.X_train, data.y_train),[(data.X_valid, data.y_valid),(data.X_test, data.y_test)])
@@ -153,7 +144,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         ).to(device)
     model.visual = visual
     print(model)
-    dump_model_params(model)
+    quantum_forest.dump_model_params(model)
 
     if False:       # trigger data-aware init,作用不明显
         with torch.no_grad():
@@ -163,14 +154,15 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
 
     from qhoptim.pyt import QHAdam
     #weight_decay的值需要反复适配       如取1.0e-6 还可以  0.61142-0.58948
-    optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':config.lr_base }
+    optimizer=QHAdam;           optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':config.lr_base }
+    #一开始收敛快，后面要慢一些
+    #optimizer = torch.optim.Adam;    optimizer_params = {'lr':config.lr_base }
     trainer = quantum_forest.Trainer(
         model=model, loss_function=F.mse_loss,
         experiment_name=config.experiment,
-        warm_start=False,
-        Optimizer=QHAdam,
-        optimizer_params=optimizer_params,
-        verbose=False,      #True
+        warm_start=False,   
+        Optimizer=optimizer,        optimizer_params=optimizer_params,
+        verbose=True,      #True
         n_last_checkpoints=5
     )
     from IPython.display import clear_output
@@ -180,6 +172,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     early_stopping_rounds = 3000
     report_frequency = 1000
     eval_batch_size = 512 if config.path_way=="TREE_map" else 1024
+    config.eval_batch_size = eval_batch_size
 
     print(f"trainer.model={trainer.model}\ntrainer.opt={trainer.opt}")
     model.AfterEpoch(isBetter=True, epoch=0)
@@ -195,15 +188,18 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         if trainer.step % report_frequency == 0:
             epoch=epoch+1
             if torch.cuda.is_available():   torch.cuda.empty_cache()
-            trainer.save_checkpoint()
-            trainer.average_checkpoints(out_tag='avg')
-            trainer.load_checkpoint(tag='avg')
-            dict_info,prediction = trainer.evaluate_mse(data.X_valid, YY_valid, device=device, batch_size=eval_batch_size)
-            if config.cascade_LR:
-                prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
-            mse = ((data.y_valid - prediction) ** 2).mean()
-
-            model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
+            mse = trainer.AfterEpoch(epoch,data,YY_valid,best_mse)
+            if False:
+                trainer.save_checkpoint()
+                trainer.average_checkpoints(out_tag='avg')
+                trainer.load_checkpoint(tag='avg')
+                dict_info,prediction = trainer.evaluate_mse(data.X_valid, YY_valid, device=device, batch_size=eval_batch_size)
+                if config.cascade_LR:
+                    prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
+                mse = ((data.y_valid - prediction) ** 2).mean()
+                model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
+                reg_Gate = dict_info["reg_Gate"] 
+                print(f"\nloss_{trainer.step}\t{metrics['loss']:.5f}\treg_Gate:{reg_Gate:.4g}\tVal MSE:{mse:.5f}" )  
             if mse < best_mse:
                 best_mse = mse
                 best_step_mse = trainer.step
@@ -228,8 +224,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                     plt.show()
             else:
                 visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
-            reg_Gate = dict_info["reg_Gate"] 
-            print(f"\nloss_{trainer.step}\t{metrics['loss']:.5f}\treg_Gate:{reg_Gate:.4g}\tVal MSE:{mse:.5f}" )   
+             
                      
         if trainer.step>50000:
             break

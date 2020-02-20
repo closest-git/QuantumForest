@@ -123,3 +123,19 @@ def get_latest_file(pattern):
     list_of_files = glob.glob(pattern) # * means all if need specific format then *.csv
     assert len(list_of_files) > 0, "No files found: " + pattern
     return max(list_of_files, key=os.path.getctime)
+
+def dump_model_params(model):
+    nzParams = 0
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            nzParams += param.nelement()
+            print(f"\t{name}={param.nelement()}")
+    print(f"========All parameters={nzParams}")
+    return nzParams
+
+def model_params(model):
+    nzParams = 0
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            nzParams += param.nelement()
+    return nzParams

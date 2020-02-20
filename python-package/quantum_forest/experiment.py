@@ -7,7 +7,7 @@ import torch.nn as nn
 
 import torch.nn.functional as F
 
-from .some_utils import get_latest_file,  check_numpy
+from .some_utils import get_latest_file, check_numpy,model_params
 #from .nn_utils import to_one_hot
 from collections import OrderedDict
 from copy import deepcopy
@@ -73,7 +73,10 @@ class Trainer(nn.Module):
         self.model = model
         #self.loss_function = loss_function
         self.verbose = verbose
-        self.opt = Optimizer(list(self.model.parameters()), **optimizer_params)
+        #self.opt = Optimizer(list(self.model.parameters()), **optimizer_params)
+        self.opt_parameters = optimizer_params
+        self.Optimizer = Optimizer
+        self.opt = self.Optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),**self.opt_parameters )
         self.step = 0
         self.n_last_checkpoints = n_last_checkpoints
         self.isFirstBackward = True
@@ -189,9 +192,9 @@ class Trainer(nn.Module):
         self.opt.step()
         self.step += 1
         self.writer.add_scalar('train loss', loss.item(), self.step)
-        metric = {'loss': loss.item()}
+        self.metrics = {'loss': loss.item()}
         del loss
-        return metric
+        return self.metrics
 
     def evaluate_classification_error(self, X_test, y_test, device, batch_size=4096):
         X_test = torch.as_tensor(X_test, device=device)
@@ -237,3 +240,27 @@ class Trainer(nn.Module):
             y_test = torch.tensor(y_test)
             logloss = log_loss(check_numpy(to_one_hot(y_test)), logits)
         return logloss
+    
+    def AfterEpoch(self,epoch,data,YY_valid,best_mse):
+        config = self.model.config
+        if config.average_training: #有意思，最终可以提高Val MSE
+            self.save_checkpoint()
+            self.average_checkpoints(out_tag='avg')
+            self.load_checkpoint(tag='avg')
+        dict_info,prediction = self.evaluate_mse(data.X_valid, YY_valid, device=config.device, batch_size=config.eval_batch_size)
+        if config.cascade_LR:
+            prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
+        mse = ((data.y_valid - prediction) ** 2).mean()
+
+        self.model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
+        reg_Gate = dict_info["reg_Gate"] 
+        loss_step = self.metrics['loss']
+        print(f"\n{self.step}\tnzParam={model_params(self.model)}\t{loss_step:.5f}\treg_Gate:{reg_Gate:.4g}\tVal MSE:{mse:.5f}" )  
+
+        if False:   #two stage training 真令人失望啊
+            all_grad = False if epoch%2==1 else True
+            self.model.freeze_some_params({"requires_grad":all_grad})     
+            nzParams = model_params(self.model)           
+            print(f"\tEpoch={epoch}\tSet all_grad to {all_grad}  nzParams={nzParams} !!!")
+            self.opt = self.Optimizer(filter(lambda p: p.requires_grad, self.model.parameters()), **self.opt_parameters)
+        return mse
