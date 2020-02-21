@@ -81,7 +81,7 @@ class DecisionBlock(nn.Sequential):
             layer_inp = x
             x = layer(layer_inp)
         outputs = x
-        if self.config.leaf_output == "learn_distri":
+        if self.config.leaf_output == "leaf_distri":
             if not self.flatten_output:
                 outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.response_dim)
             if self.config.max_out:

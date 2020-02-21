@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_svmlight_file
 from sklearn.preprocessing import QuantileTransformer
 from category_encoders import LeaveOneOutEncoder
+import matplotlib.pyplot as plt
 
 def download(url, filename, delete_if_interrupted=True, chunk_size=4096):
     """ saves file from url to filename with a fancy progressbar """
@@ -122,6 +123,10 @@ class TabularDataset:
                 with open(pkl_path, "wb") as fp:
                     pickle.dump([self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std], fp)
             gc.collect()
+        if False:
+            plt.hist(self.y_train);         plt.show()
+            plt.hist(self.y_valid);         plt.show()
+            plt.hist(self.y_test);          plt.show()
         return
 
     def __init__(self, dataset, random_state, data_path='./data', normalize=False,

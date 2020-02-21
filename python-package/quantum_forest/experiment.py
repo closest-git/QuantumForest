@@ -57,7 +57,7 @@ def process_in_chunks(function, *args, batch_size, out=None, **kwargs):
     dict_info={"reg_Gate":reg_Gate/total_size,"total_size":total_size}
     return out,dict_info
 
-class Trainer(nn.Module):
+class Experiment(nn.Module):
     def __init__(self, model, loss_function, experiment_name=None, warm_start=False, 
                  Optimizer=torch.optim.Adam, optimizer_params={}, verbose=False, 
                  n_last_checkpoints=1, **kwargs):
@@ -96,6 +96,11 @@ class Trainer(nn.Module):
 
         if warm_start:
             self.load_checkpoint()
+    
+    def SetLearner(self,wLearner):
+        self.model = wLearner        
+        self.opt = self.Optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),**self.opt_parameters )
+        print(f"====== Experiment SetModel={wLearner}")
     
     def save_checkpoint(self, tag=None, path=None, mkdir=True, **kwargs):
         assert tag is None or path is None, "please provide either tag or path or nothing, not both"

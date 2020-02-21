@@ -11,9 +11,10 @@ import seaborn as sns;      sns.set()
 import numpy as np
 from .DecisionBlock import *
 import matplotlib.pyplot as plt
+from .some_utils import *
 
 class QForest_Net(nn.Module):
-    def __init__(self, in_features, config,feat_info=None):
+    def __init__(self, in_features, config,feat_info=None,visual=None):
         super(QForest_Net, self).__init__()
         config.feat_info = feat_info
         self.layers = nn.ModuleList()
@@ -48,7 +49,10 @@ class QForest_Net(nn.Module):
             )
 
         self.pooling = None
-        print("====== QForest_Net::__init__")
+        self.visual = visual
+        print("====== QForest_Net::__init__   OK!!!")        
+        #print(self)
+        dump_model_params(self)
 
     def forward(self, x):
         #self.gates_cp.data.zero_()

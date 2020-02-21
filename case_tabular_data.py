@@ -21,7 +21,7 @@ import torch, torch.nn as nn
 import torch.nn.functional as F
 import lightgbm as lgb
 from sklearn.model_selection import KFold
-
+from qhoptim.pyt import QHAdam
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
@@ -118,8 +118,7 @@ def GBDT_test(data,fold_n):
         print(f'====== Best step: test={data.X_test.shape} ACCU@Test={acc_:.5f}')
     return acc_,acc_train
 
-def NODE_test(data,fold_n,config,visual=None,feat_info=None):
-    config.device = device
+def cascade_LR():   #意义不大
     if config.cascade_LR:
         LinearRgressor = quantum_forest.Linear_Regressor({'cascade':"ridge"})
         y_New = LinearRgressor.BeforeFit((data.X_train, data.y_train),[(data.X_valid, data.y_valid),(data.X_test, data.y_test)])
@@ -127,63 +126,80 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         YY_valid,YY_test = y_New[1],y_New[2]
     else:
         YY_train,YY_valid,YY_test = data.y_train, data.y_valid, data.y_test
-    #print(f"======  NODE_test depth={depth},batch={batch_size},nTree={nTree}\n")
+    return YY_train,YY_valid,YY_test
+
+def VisualAfterEpoch(epoch,visual,config,mse):
+    if visual is None:
+        if config.plot_train:
+            clear_output(True)
+            plt.figure(figsize=[18, 6])
+            plt.subplot(1, 2, 1)
+            plt.plot(loss_history)
+            plt.title('Loss')
+            plt.grid()
+            plt.subplot(1, 2, 2)
+            plt.plot(mse_history)
+            plt.title('MSE')
+            plt.grid()
+            plt.show()
+    else:
+        visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
+
+
+def NODE_test(data,fold_n,config,visual=None,feat_info=None):
+    config.device = device
+    YY_train,YY_valid,YY_test = data.y_train, data.y_valid, data.y_test
+
     mean,std = YY_train.mean(), YY_train.std()
     config.mean,config.std = mean,std
-    print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} mean={mean} std={std}\n======  config={config}\n")
+    print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} mean={mean} std={std}\n")
     in_features = data.X_train.shape[1]
     #config.tree_module = node_lib.ODST
     config.tree_module = quantum_forest.DeTree
-    if True:#,feat_info=feat_info
-        model = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info).to(device)       #
-    else:
-        model = nn.Sequential(
-            DecisionBlock(in_features, config, flatten_output=False,feat_info=feat_info),
-            #MultiBlock(in_features, config, flatten_output=False,feat_info=feat_info),
-            #node_lib.Lambda(lambda x: x[..., 0].mean(dim=-1)),  # average first channels of every tree
-        ).to(device)
-    model.visual = visual
-    print(model)
-    quantum_forest.dump_model_params(model)
+    Learners,last_train_prediction=[],0
+    qForest = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info,visual=visual).to(device)   
+    Learners.append(qForest)    
 
     if False:       # trigger data-aware init,作用不明显
         with torch.no_grad():
             res = model(torch.as_tensor(data.X_train[:1000], device=device))
-
     #if torch.cuda.device_count() > 1:        model = nn.DataParallel(model)
 
-    from qhoptim.pyt import QHAdam
     #weight_decay的值需要反复适配       如取1.0e-6 还可以  0.61142-0.58948
-    optimizer=QHAdam;           optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':config.lr_base }
+    optimizer=QHAdam;           
+    optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':config.lr_base,'weight_decay':1.0e-8 }
     #一开始收敛快，后面要慢一些
     #optimizer = torch.optim.Adam;    optimizer_params = {'lr':config.lr_base }
-    trainer = quantum_forest.Trainer(
-        model=model, loss_function=F.mse_loss,
-        experiment_name=config.experiment,
-        warm_start=False,   
-        Optimizer=optimizer,        optimizer_params=optimizer_params,
-        verbose=True,      #True
-        n_last_checkpoints=5
-    )
+
     from IPython.display import clear_output
     loss_history, mse_history = [], []
     best_mse = float('inf')
     best_step_mse = 0
     early_stopping_rounds = 3000
     report_frequency = 1000
-    eval_batch_size = 512 if config.path_way=="TREE_map" else 1024
-    config.eval_batch_size = eval_batch_size
+    config.eval_batch_size = 512 if config.path_way=="TREE_map" else 1024
 
-    print(f"trainer.model={trainer.model}\ntrainer.opt={trainer.opt}")
-    model.AfterEpoch(isBetter=True, epoch=0)
+    wLearner=Learners[-1]
+    trainer = quantum_forest.Experiment(
+        model=wLearner, loss_function=F.mse_loss,
+        experiment_name=config.experiment,
+        warm_start=False,   
+        Optimizer=optimizer,        optimizer_params=optimizer_params,
+        verbose=True,      #True
+        n_last_checkpoints=5
+    )   
+    trainer.SetLearner(wLearner)
+    print(f"======  trainer.learner={trainer.model}\ntrainer.opt={trainer.opt}\n======  config={config.__dict__}")
+    print(f"======  YY_train={np.linalg.norm(YY_train)}")
+    wLearner.AfterEpoch(isBetter=True, epoch=0)
     epoch,t0=0,time.time()
     for batch in node_lib.iterate_minibatches(data.X_train, YY_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
         metrics = trainer.train_on_batch(*batch, device=device)
         loss_history.append(metrics['loss'])
         if trainer.step%10==0:
             symbol = "^" if config.cascade_LR else ""
-            print(f"\r============ {trainer.step}{symbol}\t{metrics['loss']:.5f}\tL1=[{model.reg_L1:.4g}*{config.reg_L1}]"
-            f"\tL2=[{model.reg_L2:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
+            print(f"\r============ {trainer.step}{symbol}\t{metrics['loss']:.5f}\tL1=[{wLearner.reg_L1:.4g}*{config.reg_L1}]"
+            f"\tL2=[{wLearner.reg_L2:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
             ,end="")
         if trainer.step % report_frequency == 0:
             epoch=epoch+1
@@ -196,7 +212,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                 dict_info,prediction = trainer.evaluate_mse(data.X_valid, YY_valid, device=device, batch_size=eval_batch_size)
                 if config.cascade_LR:
                     prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
-                mse = ((data.y_valid - prediction) ** 2).mean()
+                mse = ((YY_valid - prediction) ** 2).mean()
                 model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
                 reg_Gate = dict_info["reg_Gate"] 
                 print(f"\nloss_{trainer.step}\t{metrics['loss']:.5f}\treg_Gate:{reg_Gate:.4g}\tVal MSE:{mse:.5f}" )  
@@ -205,27 +221,26 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                 best_step_mse = trainer.step
                 trainer.save_checkpoint(tag='best_mse')
             mse_history.append(mse)
+            if config.average_training:
+                trainer.load_checkpoint()  # last
+                trainer.remove_old_temp_checkpoints()
+            VisualAfterEpoch(epoch,visual,config,mse)
 
-            trainer.load_checkpoint()  # last
-            trainer.remove_old_temp_checkpoints()
+            if False and epoch%10==9: #有bug啊
+                #YY_valid = YY_valid- prediction
+                dict_info,train_pred = trainer.evaluate_mse(data.X_train, YY_train, device=config.device, batch_size=config.eval_batch_size)
+                #last_train_prediction = last_train_prediction+train_pred
+                mse_train = dict_info["mse"]                
+                YY_train = YY_train-train_pred
+                mean,std = YY_train.mean(), YY_train.std()
+                config.mean,config.std = mean,std
+                qForest = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info,visual=visual).to(device)   
+                #Learners.append(qForest)
+                wLearner=qForest#Learners[-1]
+                print(f"NODE_test::Expand@{epoch} eval_train={mse_train:.2f} YY_train={np.linalg.norm(YY_train)}")
+                trainer.SetModel(wLearner)
 
-            if visual is None:
-                if config.plot_train:
-                    clear_output(True)
-                    plt.figure(figsize=[18, 6])
-                    plt.subplot(1, 2, 1)
-                    plt.plot(loss_history)
-                    plt.title('Loss')
-                    plt.grid()
-                    plt.subplot(1, 2, 2)
-                    plt.plot(mse_history)
-                    plt.title('MSE')
-                    plt.grid()
-                    plt.show()
-            else:
-                visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
-             
-                     
+                                         
         if trainer.step>50000:
             break
         if trainer.step > best_step_mse + early_stopping_rounds:
@@ -237,7 +252,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         if torch.cuda.is_available():  torch.cuda.empty_cache()
         trainer.load_checkpoint(tag='best_mse')
         t0=time.time()
-        dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=device, batch_size=eval_batch_size)
+        dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=device, batch_size=config.eval_batch_size)
         if config.cascade_LR:
             prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
         mse = ((data.y_test - prediction) ** 2).mean()

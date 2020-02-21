@@ -218,9 +218,20 @@ class DeTree(nn.Module):
         self.response_mean,self.response_std = config.mean, config.std
         self.gate_values = 0
 
-        if self.config.leaf_output == "learn_distri":
+        if self.config.leaf_output == "leaf_distri":
             self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
             initialize_response_(self.response,mean=self.response_mean,std=self.response_std)
+        elif self.config.leaf_output == "distri2fc":
+            self.leaf_maps = nn.ModuleList()
+            self.leaf_maps.append(
+                #nn.Linear(num_trees*(2**depth),1)
+                nn.Linear(num_trees,num_trees)
+                #nn.Linear(2**depth,1)
+            )
+            for layer in self.leaf_maps:
+                #nn.init.normal_(layer.weight.data,mean=self.response_mean,std=self.response_std)
+                nn.init.kaiming_normal_ (layer.weight.data)
+
         else:
             self.response = None
         self.path_map = None
@@ -303,7 +314,7 @@ class DeTree(nn.Module):
             else:
                 pass
                 #self.gates_cp = torch.norm(self.gate_values,p=2)/self.gate_values.numel()
-        if self.config.leaf_output == "learn_distri":
+        if self.config.leaf_output == "leaf_distri":
             response = torch.einsum('btl,tcl->btc', response_weights, self.response)            # ^-- [batch_size, num_trees, distri_dim]
             return response.flatten(1, 2) if self.flatten_output else response
         elif self.config.leaf_output == "Y":        #有问题，如何validate?
@@ -312,6 +323,14 @@ class DeTree(nn.Module):
             leaf_value = leaf_value.mean(dim=0)
             response = torch.einsum('btl,tl->bt', response_weights, leaf_value)
             return response
+        elif self.config.leaf_output == "distri2fc":
+            #distri = response_weights.flatten(1, 2)
+            distri = torch.max(response_weights,dim=-1).values
+            #distri = torch.max(response_weights,dim=-2).values
+            for layer in self.leaf_maps:
+                distri = layer(distri)
+            #distri = F.dropout(distri,p=0.01)
+            return distri
         else:
             assert(False)
             return None
@@ -356,7 +375,7 @@ class DeTree(nn.Module):
             self.log_temperatures.data[...] = torch.log(torch.as_tensor(temperatures) + eps)
 
     def __repr__(self):
-        return "{}(F={},f={},B={}, T={},D={}, response_dim={}, " \
+        main_str = "{}(F={},f={},B={}, T={},D={}, response_dim={}, " \
                "init_attention={},flatten_output={},bin_func={},init_response=[{},{:.3f},{:.3f}])".format(
             self.__class__.__name__, 0 if self.no_attention else self.feat_attention.shape[0],
             self.nFeature,self.config.batch_size,self.num_trees, self.depth, self.response_dim, 
@@ -364,4 +383,7 @@ class DeTree(nn.Module):
             self.bin_func,
             self.init_responce_func.__name__,self.response_mean,self.response_std
         )
+        if hasattr(self,"leaf_maps"):
+            main_str += f"\nleaf_maps={self.leaf_maps.__repr__}"
+        return main_str
 
