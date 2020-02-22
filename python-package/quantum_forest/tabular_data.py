@@ -45,7 +45,23 @@ def download(url, filename, delete_if_interrupted=True, chunk_size=4096):
     In each fold, three parts for training, one part for validation, and the remaining part for test
 '''
 class TabularDataset:
-    def quantile_transform(self, random_state, X_samp, listX, normalize=False,distri='normal', noise=0):
+    def RemoveConstant(self,X_samp, listX):    
+        self.nFeat = X_samp.shape[1]    
+        stds = np.std(X_samp, axis=0)
+        keep = np.where(stds != 0)[0]
+        keep = list(keep)
+        self.zero_feats=[]
+        if len(keep)<self.nFeat:            
+            self.zero_feats = list(np.where(stds == 0)[0])
+            print(f"====== TabularDataset::RemoveConstant zeros={len(self.zero_feats)} {self.zero_feats}")
+            for i,X_ in enumerate(listX):
+                if X_ is None:
+                    continue
+                listX[i] = X_[:,keep]
+        return listX
+
+    #确实有用，需要进一步分析
+    def quantile_trans_(self, random_state, X_samp, listX, normalize=False,distri='normal', noise=0):
         if normalize:
             mean = np.mean(self.X_train, axis=0)
             std = np.std(self.X_train, axis=0)
@@ -57,6 +73,7 @@ class TabularDataset:
         if noise:
             stds = np.std(quantile_train, axis=0, keepdims=True)
             noise_std = noise / np.maximum(stds, noise)
+            #assert np.max(noise_std)<0.01
             quantile_train += noise_std * np.random.randn(*quantile_train.shape)
 
         qt = QuantileTransformer(random_state=random_state, output_distribution=distri).fit(quantile_train)
@@ -90,7 +107,7 @@ class TabularDataset:
             print("====== onFold pkl_path={} ......".format(pkl_path))
         if pkl_path is not None and os.path.isfile(pkl_path):
             with open(pkl_path, "rb") as fp:
-                [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std] = pickle.load(fp)
+                [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std,self.zero_feats] = pickle.load(fp)
             print("mean = %.5f, std = %.5f" % (mu, std))
             gc.collect()
         else:
@@ -102,6 +119,8 @@ class TabularDataset:
                     self.X_test, self.y_test = self.X[test_index], self.Y[test_index]
             else:
                 print(f"====== TabularDataset::Fold_{fold}......")
+            listX = self.RemoveConstant(self.X_train,[self.X_train, self.X_valid, self.X_test])
+            self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]
             mu, std = self.y_train.mean(), self.y_train.std()
             print("onFold:\tmean = %.5f, std = %.5f" % (mu, std))
             if False:   #不方便对比，应删除
@@ -113,7 +132,7 @@ class TabularDataset:
                 self.y_valid = self.y_valid.astype(np.float32)
                 if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)
             t0=time.time()
-            listX, _ = self.quantile_transform(self.random_state, self.X_train,
+            listX, _ = self.quantile_trans_(self.random_state, self.X_train,
                     [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
             self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]
             print(f"====== TabularDataset::quantile_transform time={time.time()-t0:.5f}")
@@ -121,7 +140,7 @@ class TabularDataset:
 
             if pkl_path is not None:
                 with open(pkl_path, "wb") as fp:
-                    pickle.dump([self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std], fp)
+                    pickle.dump([self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std,self.zero_feats], fp)
             gc.collect()
         if False:
             plt.hist(self.y_train);         plt.show()

@@ -169,13 +169,18 @@ class Experiment(nn.Module):
             os.remove(ckpt)
 
     def train_on_batch(self, *batch, device):
-        if False and torch.cuda.is_available():     #need lots of time!!!
-            torch.cuda.empty_cache()
-            #mem_info = torch.cuda.memory_stats(device=None)
-            #print(mem_info)
         #with torch.autograd.set_detect_anomaly(True):
         x_batch, y_batch = batch
-        x_batch = torch.as_tensor(x_batch, device=device)
+        augment = self.model.config.Augment
+        if augment["batch_noise"]>0:
+            noise = augment["batch_noise"]
+            stds = np.std(x_batch, axis=0, keepdims=True)
+            #noise_std = noise / np.maximum(stds, noise)
+            noise = noise*stds * np.random.randn(*x_batch.shape)
+            x_aug = x_batch+noise
+            x_batch = torch.as_tensor(x_aug, device=device, dtype=torch.float32)
+        else:
+            x_batch = torch.as_tensor(x_batch, device=device)
         y_batch = torch.as_tensor(y_batch, device=device)
         self.model.config.y_batch = y_batch
         self.model.train()

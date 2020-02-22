@@ -44,25 +44,6 @@ def InitExperiment(config,fold_n):
         shutil.rmtree(log_path)
     return config,visual
 
-
-def LoadData( ):
-    pkl_path = f'./data/{dataset}.pickle'
-    if False and os.path.isfile(pkl_path):
-        print("====== LoadData@{} ......".format(pkl_path))
-        with open(pkl_path, "rb") as fp:
-            data = pickle.load(fp)
-    else:
-        data = quantum_forest.Dataset(dataset, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
-        #data = node_lib.Dataset("HIGGS",data_path="F:/Datasets/",random_state=1337, quantile_transform=True, quantile_noise=1e-3)
-        in_features = data.X_train.shape[1]
-        mu, std = data.y_train.mean(), data.y_train.std()
-        normalize = lambda x: ((x - mu) / std).astype(np.float32)
-        data.y_train, data.y_valid, data.y_test = map(normalize, [data.y_train, data.y_valid, data.y_test])
-        print("mean = %.5f, std = %.5f" % (mu, std))
-        with open(pkl_path, "wb") as fp:
-            pickle.dump(data,fp)
-    return data
-
 def plot_importance(model,nMax=30):
     plt.figure(figsize=(12, 6))
     lgb.plot_importance(model, max_num_features=nMax)
@@ -76,7 +57,7 @@ def GBDT_test(data,fold_n):
     early_stop = 100;    verbose_eval = 20
     metric = 'l2'       #"rmse"
     num_rounds = 100000; nLeaf = 32
-    lr = 0.02;    bf = 0.51;    ff = 0.81
+    lr = 0.1;    bf = 0.51;    ff = 0.1
 
     params = {"objective": "regression", "metric": metric,
               "num_leaves": nLeaf, "learning_rate": lr, 'n_estimators': num_rounds,
@@ -286,8 +267,8 @@ def Fold_learning(fold_n,data,config,visual):
     return
 
 if __name__ == "__main__":
-    #data = LoadData()
     data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
+    #data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True)
     config = quantum_forest.QForest_config(dataset,0.002,feat_info="importance")   #,feat_info="importance"
     random_state = 42
     quantum_forest.OnInitInstance(random_state)

@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-02-22 10:12:05
+@LastEditTime: 2020-02-22 10:20:23
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -84,7 +84,7 @@ class Simple_VGG(nn.Module):
         }
         self.type = 'VGG_1'
         self.features = self._make_layers(self.cfg[self.type],in_channel=in_channel)
-        #self.init_weights()
+        #self.init_weights()    #引起振荡，莫名其妙
         print(self)
     
     def forward(self, x):

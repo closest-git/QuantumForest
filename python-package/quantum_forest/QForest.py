@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-02-21 22:21:29
+@LastEditTime: 2020-02-22 15:13:23
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
@@ -39,6 +39,7 @@ class QForest_config:
         self.cascade_LR = False
         self.average_training = False   #True不合适，难以和其它模块一起训练
         self.back_bone = 'resnet18_x'
+        self.Augment = {"batch_noise":0}    #0.0001
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
