@@ -1,7 +1,7 @@
 '''
 @Author: your name
 @Date: 2020-02-11 11:22:03
-@LastEditTime: 2020-02-17 16:47:29
+@LastEditTime: 2020-02-21 15:31:33
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\__init__.py

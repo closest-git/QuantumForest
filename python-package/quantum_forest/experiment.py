@@ -173,6 +173,7 @@ class Experiment(nn.Module):
             torch.cuda.empty_cache()
             #mem_info = torch.cuda.memory_stats(device=None)
             #print(mem_info)
+        #with torch.autograd.set_detect_anomaly(True):
         x_batch, y_batch = batch
         x_batch = torch.as_tensor(x_batch, device=device)
         y_batch = torch.as_tensor(y_batch, device=device)
@@ -184,7 +185,7 @@ class Experiment(nn.Module):
         
         #if self.model.config.reg_Gate!=0 and self.step%3==1:            
         #    loss = self.model.gates_cp*self.model.config.reg_Gate
-
+        assert y_output.shape==y_batch.shape
         loss = F.mse_loss(y_output, y_batch)
         loss = loss.mean()
         #loss += self.model.Regularization()
@@ -247,6 +248,7 @@ class Experiment(nn.Module):
         return logloss
     
     def AfterEpoch(self,epoch,data,YY_valid,best_mse):
+        t0=time.time()
         config = self.model.config
         if config.average_training: #有意思，最终可以提高Val MSE
             self.save_checkpoint()
@@ -260,7 +262,7 @@ class Experiment(nn.Module):
         self.model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
         reg_Gate = dict_info["reg_Gate"] 
         loss_step = self.metrics['loss']
-        print(f"\n{self.step}\tnzParam={model_params(self.model)}\t{loss_step:.5f}\treg_Gate:{reg_Gate:.4g}\tVal MSE:{mse:.5f}" )  
+        print(f"\n{self.step}\tnzParam={model_params(self.model)}\t{loss_step:.5f}\treg_Gate:{reg_Gate:.4g}\tT={time.time()-t0:.2f}\tVal MSE:{mse:.5f}" )  
 
         if False:   #two stage training 真令人失望啊
             all_grad = False if epoch%2==1 else True

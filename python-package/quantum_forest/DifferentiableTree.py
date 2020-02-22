@@ -231,7 +231,10 @@ class DeTree(nn.Module):
             for layer in self.leaf_maps:
                 #nn.init.normal_(layer.weight.data,mean=self.response_mean,std=self.response_std)
                 nn.init.kaiming_normal_ (layer.weight.data)
-
+        elif self.config.leaf_output == "distri2CNN":
+            self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
+            initialize_response_(self.response,mean=self.response_mean,std=self.response_std)
+            pass
         else:
             self.response = None
         self.path_map = None
@@ -330,6 +333,16 @@ class DeTree(nn.Module):
             for layer in self.leaf_maps:
                 distri = layer(distri)
             #distri = F.dropout(distri,p=0.01)
+            return distri
+        elif self.config.leaf_output == "distri2CNN": 
+            if hasattr(self,"response"):
+                response = torch.einsum('btl,tcl->btc', response_weights, self.response).transpose(1, 2) 
+                assert response.shape[1]==self.config.response_dim
+                distri = response.view(batch_size,self.config.response_dim,self.config.T_w,-1)  
+            else:
+                shape= response_weights.shape
+                response_weights = torch.max(response_weights,-1).values
+                distri = response_weights.view(shape[0],1,self.config.T_w,-1)            
             return distri
         else:
             assert(False)

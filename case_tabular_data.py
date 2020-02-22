@@ -177,7 +177,8 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     best_step_mse = 0
     early_stopping_rounds = 3000
     report_frequency = 1000
-    config.eval_batch_size = 512 if config.path_way=="TREE_map" else 1024
+    config.eval_batch_size = 512 if config.leaf_output=="distri2CNN" else \
+            512 if config.path_way=="TREE_map" else 1024
 
     wLearner=Learners[-1]
     trainer = quantum_forest.Experiment(

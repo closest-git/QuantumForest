@@ -1,7 +1,7 @@
 '''
-@Author: your name
+@Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-02-16 09:45:25
+@LastEditTime: 2020-02-22 10:12:05
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -12,8 +12,104 @@ import numpy as np
 from .DecisionBlock import *
 import matplotlib.pyplot as plt
 from .some_utils import *
+from cnn_models import *
 
+class Simple_CNN(nn.Module):
+    def __init__(self, num_blocks, in_channel=3,out_channel=10):
+        super(Simple_CNN, self).__init__()
+        self.in_planes = 64
+        nK=128
+        self.conv1 = nn.Conv2d(in_channel, nK, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(nK)
+        #self.linear = nn.Linear(512*block.expansion, num_classes)
+        #self.linear = nn.Linear(1024, out_channel) 有意思
+    
+    def forward(self, x):
+        if False:    #仅用于调试
+            shape=x.shape
+            x=x.view(shape[0],1,shape[1],shape[2])
+            x=x.view(shape[0],shape[1],shape[2])
+            x = torch.max(x,dim=-1).values
+            x = x.mean(dim=-1) 
+            return x
+        else:        
+            out = F.relu(self.bn1(self.conv1(x)))     
+            #out = self.bn1(self.conv1(x))       
+            out = F.avg_pool2d(out, 8)   
+            #out = F.max_pool2d(out, 8)          
+            out = out.view(out.size(0), -1)
+            if hasattr(self,"linear"):
+                out = self.linear(out)
+            else:
+                out = out.mean(dim=-1)
+                #out = torch.max(out,-1).values 略差
+            return out
+
+class Simple_VGG(nn.Module):
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+                
+    def _make_layers(self, cfg, in_channel=3):
+        layers = []
+        in_channels = in_channel
+        for x in cfg:
+            if x == 'M':
+                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+            else:
+                layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
+                           nn.BatchNorm2d(x),
+                           nn.ReLU(inplace=True)]
+                in_channels = x
+        #layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
+        return nn.Sequential(*layers)
+
+    def __init__(self, num_blocks, in_channel=3,out_channel=10):
+        super(Simple_VGG, self).__init__()
+        self.cfg = {
+            'VGG_1': [64,'M'],
+            'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+            'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+            'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
+            'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+        }
+        self.type = 'VGG_1'
+        self.features = self._make_layers(self.cfg[self.type],in_channel=in_channel)
+        #self.init_weights()
+        print(self)
+    
+    def forward(self, x):
+        out = self.features(x)        
+        out = out.view(out.size(0), -1)
+        if hasattr(self,"linear"):
+            out = self.linear(out)
+        else:
+            out = out.mean(dim=-1)
+        return out
+
+            
 class QForest_Net(nn.Module):
+    def pick_cnn(self):
+        self.back_bone = 'resnet18_x'
+        in_channel = self.config.response_dim
+        # model_name='dpn92'
+        # model_name='senet154'
+        # model_name='densenet121'
+        # model_name='alexnet'
+        # model_name='senet154'
+        #cnn_model = ResNet_custom([2,2,2,2],in_channel=1,out_channel=1)          ;#models.resnet18(pretrained=True)
+        cnn_model = Simple_VGG([2,2,2,2],in_channel=in_channel,out_channel=1) 
+        return cnn_model
+
     def __init__(self, in_features, config,feat_info=None,visual=None):
         super(QForest_Net, self).__init__()
         config.feat_info = feat_info
@@ -23,6 +119,8 @@ class QForest_Net(nn.Module):
         #self.gates_cp = nn.Parameter(torch.zeros([1]), requires_grad=True)
         self.reg_L1 = 0.
         self.reg_L2 = 0.
+        if config.leaf_output == "distri2CNN": 
+            self.cnn_model = self.pick_cnn()    
         
         #self.nAtt, self.nzAtt = 0, 0        #sparse attention
         if self.config.data_normal=="NN":       #将来可替换为deepFM
@@ -63,9 +161,13 @@ class QForest_Net(nn.Module):
             x = layer(x)
             #self.gates_cp.data += layer.gates_cp
         self.Regularization()       #统计Regularization
-        x = x.mean(dim=-1)        #self.pooling(x)
-        #x = torch.max(x,dim=-1).values
-        return x
+        if self.config.leaf_output == "distri2CNN": 
+            x = self.cnn_model(x)
+            return x
+        else:
+            x = x.mean(dim=-1)        #self.pooling(x)
+            #x = torch.max(x,dim=-1).values
+            return x
     
     def Regularization(self):
         dict_val = self.get_variables({"attention":[],"gate_values":[]})

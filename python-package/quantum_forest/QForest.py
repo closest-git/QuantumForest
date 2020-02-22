@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-02-21 10:13:53
+@LastEditTime: 2020-02-21 22:21:29
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
@@ -32,12 +32,13 @@ class QForest_config:
         self.plot_train = False
         self.plot_attention = True
         self.data_normal = ""       #"NN"     "Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
-        self.leaf_output = "leaf_distri"       #"distri2fc" "distri2CNN"  "Y" "leaf_distri"
+        self.leaf_output = "distri2CNN"       #"distri2fc" "distri2CNN"  "Y" "leaf_distri"
         self.reg_L1 = 0#1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
         self.reg_Gate = 0 
         self.path_way="TREE_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
         self.cascade_LR = False
         self.average_training = False   #True不合适，难以和其它模块一起训练
+        self.back_bone = 'resnet18_x'
 
         if data_set=="YEAR":
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
@@ -53,13 +54,18 @@ class QForest_config:
             self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 6144, 3  # 0.5895
             self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 2048, 3  # 0.5913->0.5892(maxout)
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 2048, 3, 1  #
-            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 1024, 3, 1  #
+            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 1024, 1, 1  #
             #nLayers 4-0.58854  3-0.58982   2-0.58769
             #response_dim=  5-0.5910;  3-0.5913
             if self.leaf_output == "distri2fc":  #难以突破0.6啊 
                 self.depth = 4;     self.batch_size=512;    self.nTree = 256;    self.data_normal = ""
                 self.nLayers=1;  #layer=4 爆掉了    
                 self.response_dim = -1;  
+                self.lr_base = self.lr_base/2
+            if self.leaf_output == "distri2CNN":  
+                self.depth = 4;     self.batch_size=256;       self.data_normal = ""
+                self.nLayers=1;     self.response_dim = 1;      #取3容易振荡
+                self.T_w = 16;      self.T_h = 16;              self.nTree = self.T_w*self.T_h; 
                 self.lr_base = self.lr_base/2
         elif data_set=="MICROSOFT":
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 2048, 3, 1
