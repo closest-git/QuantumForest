@@ -279,12 +279,14 @@ class Experiment(nn.Module):
         dict_info,prediction = self.evaluate_mse(data.X_valid, YY_valid, device=config.device, batch_size=config.eval_batch_size)
         if config.cascade_LR:
             prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
+        prediction = prediction*data.accu_scale+data.Y_mu_0
         mse = ((data.y_valid - prediction) ** 2).mean()
 
         self.model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
         reg_Gate = dict_info["reg_Gate"] 
         loss_step = self.metrics['loss']
-        print(f"\n{self.step}\tnP={model_params(self.model)},nF4={self.nFeat4Train}\t{loss_step:.5f}\treg_Gate:{reg_Gate:.4g}\tT={time.time()-t0:.2f}\tVal MSE:{mse:.5f}" )  
+        print(  f"\n{self.step}\tnP={model_params(self.model)},nF4={self.nFeat4Train}\t{loss_step:.5f}\treg_Gate:{reg_Gate:.4g}\tT={time.time()-t0:.2f}"\
+                f"\tVal MSE:{mse:.4f}" )  
         
 
 

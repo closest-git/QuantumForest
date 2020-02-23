@@ -221,12 +221,13 @@ class DeTree(nn.Module):
         self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
         self.init_responce_func = initialize_response_
-        self.response_mean,self.response_std = config.mean, config.std
+        self.response_mean,self.response_std = 0,0
         self.gate_values = 0
 
         if self.config.leaf_output == "leaf_distri":
             self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
-            initialize_response_(self.response,mean=self.response_mean,std=self.response_std)
+            #initialize_response_(self.response,mean=self.response_mean,std=self.response_std)
+            initialize_response_(self.response)
         elif self.config.leaf_output == "distri2fc":
             self.leaf_maps = nn.ModuleList()
             self.leaf_maps.append(
@@ -239,7 +240,8 @@ class DeTree(nn.Module):
                 nn.init.kaiming_normal_ (layer.weight.data)
         elif self.config.leaf_output == "distri2CNN":
             self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
-            initialize_response_(self.response,mean=self.response_mean,std=self.response_std)
+            #initialize_response_(self.response,mean=self.response_mean,std=self.response_std)
+            initialize_response_(self.response)
             pass
         else:
             self.response = None
@@ -341,10 +343,13 @@ class DeTree(nn.Module):
             #distri = F.dropout(distri,p=0.01)
             return distri
         elif self.config.leaf_output == "distri2CNN": 
-            if hasattr(self,"response"):
+            if hasattr(self,"response"):   
                 response = torch.einsum('btl,tcl->btc', response_weights, self.response).transpose(1, 2) 
                 assert response.shape[1]==self.config.response_dim
-                distri = response.view(batch_size,self.config.response_dim,self.config.T_w,-1)  
+                if False:   #未见明显改善
+                    distri = response.view(batch_size,1,response.shape[1],-1)  
+                else:                
+                    distri = response.view(batch_size,self.config.response_dim,self.config.T_w,-1)  
             else:
                 shape= response_weights.shape
                 response_weights = torch.max(response_weights,-1).values

@@ -25,8 +25,8 @@ from qhoptim.pyt import QHAdam
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
-dataset = "YAHOO"
-#dataset = "YEAR"
+#dataset = "YAHOO"
+dataset = "YEAR"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -131,9 +131,9 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     config.device = device
     YY_train,YY_valid,YY_test = data.y_train, data.y_valid, data.y_test
 
-    mean,std = YY_train.mean(), YY_train.std()
-    config.mean,config.std = mean,std
-    print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} mean={mean} std={std}\n")
+    data.Y_mean,data.Y_std = YY_train.mean(), YY_train.std()
+    #config.mean,config.std = mean,std
+    print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} YY_train_mean={data.Y_mean:.3f} YY_train_std={data.Y_std:.3f}\n")
     in_features = data.X_train.shape[1]
     #config.tree_module = node_lib.ODST
     config.tree_module = quantum_forest.DeTree
@@ -173,8 +173,9 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     )   
     
     trainer.SetLearner(wLearner)
-    print(f"======  trainer.learner={trainer.model}\ntrainer.opt={trainer.opt}\n======  config={config.__dict__}")
-    print(f"======  YY_train={np.linalg.norm(YY_train)}")
+    print(f"======  trainer.learner={trainer.model}\ntrainer.opt={trainer.opt}"\
+        f"\n======  config={config.__dict__}")
+    print(f"======  YY_train={np.linalg.norm(YY_train):.3f},mean={data.Y_mean:.3f} std={data.Y_std:.3f}")
     wLearner.AfterEpoch(isBetter=True, epoch=0)
     epoch,t0=0,time.time()
     for batch in node_lib.iterate_minibatches(data.X_train, YY_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
@@ -217,20 +218,18 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                 mse_train = dict_info["mse"]                
                 YY_train = YY_train-train_pred
                 mean,std = YY_train.mean(), YY_train.std()
-                config.mean,config.std = mean,std
                 qForest = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info,visual=visual).to(device)   
                 #Learners.append(qForest)
                 wLearner=qForest#Learners[-1]
                 print(f"NODE_test::Expand@{epoch} eval_train={mse_train:.2f} YY_train={np.linalg.norm(YY_train)}")
                 trainer.SetModel(wLearner)
-
-                                         
+                                                                     
         if trainer.step>50000:
             break
         if trainer.step > best_step_mse + early_stopping_rounds:
             print('BREAK. There is no improvment for {} steps'.format(early_stopping_rounds))
             print("Best step: ", best_step_mse)
-            print("Best Val MSE: %0.5f" % (best_mse))
+            print(f"Best Val MSE: {best_mse:.5f}")
             break
     if data.X_test is not None:
         if torch.cuda.is_available():  torch.cuda.empty_cache()
@@ -239,6 +238,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=device, batch_size=config.eval_batch_size)
         if config.cascade_LR:
             prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
+        prediction = prediction*data.accu_scale+data.Y_mu_0
         mse = ((data.y_test - prediction) ** 2).mean()
         #mse = dict_info["mse"]
         reg_Gate = dict_info["reg_Gate"]
@@ -294,6 +294,7 @@ if __name__ == "__main__":
 
             data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{data_root}{dataset}/FOLD_{fold_n}.pickle")
             Fold_learning(fold_n,data,config,visual)
+            break
             
 
 

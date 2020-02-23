@@ -107,8 +107,8 @@ class TabularDataset:
             print("====== onFold pkl_path={} ......".format(pkl_path))
         if pkl_path is not None and os.path.isfile(pkl_path):
             with open(pkl_path, "rb") as fp:
-                [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std,self.zero_feats] = pickle.load(fp)
-            print("mean = %.5f, std = %.5f" % (mu, std))
+                [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,self.accu_scale,self.Y_mu_0, self.Y_std_0,self.zero_feats] = pickle.load(fp)
+            print("mean = %.5f, std = %.5f accu_scale =  %.5f" % (self.Y_mu_0, self.Y_std_0,self.accu_scale))
             gc.collect()
         else:
             if train_index is not None:
@@ -122,14 +122,17 @@ class TabularDataset:
             
             mu, std = self.y_train.mean(), self.y_train.std()
             print("onFold:\tmean = %.5f, std = %.5f" % (mu, std))
-            if False:   #不方便对比，应删除
+            if True:   #y_train归一化
                 self.y_train = ((self.y_train - mu) / std).astype(np.float32)
-                self.y_valid = ((self.y_valid - mu) / std).astype(np.float32)
-                if self.y_test is not None:     self.y_test = ((self.y_test - mu) / std).astype(np.float32)
+                #self.y_valid = ((self.y_valid - mu) / std).astype(np.float32)
+                #if self.y_test is not None:     self.y_test = ((self.y_test - mu) / std).astype(np.float32)
+                self.accu_scale=std
             else:
                 self.y_train = self.y_train.astype(np.float32)
-                self.y_valid = self.y_valid.astype(np.float32)
-                if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)
+                self.accu_scale=1
+            self.y_valid = self.y_valid.astype(np.float32)
+            if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)
+            
             t0=time.time()
             listX, _ = self.quantile_trans_(self.random_state, self.X_train,
                     [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
@@ -139,7 +142,7 @@ class TabularDataset:
 
             if pkl_path is not None:
                 with open(pkl_path, "wb") as fp:
-                    pickle.dump([self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,mu, std,self.zero_feats], fp)
+                    pickle.dump([self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,self.accu_scale,mu, std,self.zero_feats], fp)
             gc.collect()
         if False:
             plt.hist(self.y_train);         plt.show()
