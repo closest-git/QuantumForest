@@ -4,7 +4,7 @@ import glob
 import numpy as np
 import torch
 import torch.nn as nn
-
+import random
 import torch.nn.functional as F
 
 from .some_utils import get_latest_file, check_numpy,model_params
@@ -58,7 +58,7 @@ def process_in_chunks(function, *args, batch_size, out=None, **kwargs):
     return out,dict_info
 
 class Experiment(nn.Module):
-    def __init__(self, model, loss_function, experiment_name=None, warm_start=False, 
+    def __init__(self, config,data,model, loss_function, experiment_name=None, warm_start=False, 
                  Optimizer=torch.optim.Adam, optimizer_params={}, verbose=False, 
                  n_last_checkpoints=1, **kwargs):
         """
@@ -70,6 +70,7 @@ class Experiment(nn.Module):
         :param verbose: when set to True, produces logging information
         """
         super().__init__()
+        self.data = data
         self.model = model
         #self.loss_function = loss_function
         self.verbose = verbose
@@ -96,6 +97,13 @@ class Experiment(nn.Module):
 
         if warm_start:
             self.load_checkpoint()
+
+        if config.feature_fraction<1:
+            self.feature_fraction = config.feature_fraction
+            self.select_some_feats()
+        else:
+            self.nFeat4Train = self.data.nFeature
+        config.trainer = self
     
     def SetLearner(self,wLearner):
         self.model = wLearner        
@@ -167,6 +175,14 @@ class Experiment(nn.Module):
 
         for ckpt in paths_to_delete:
             os.remove(ckpt)
+    
+    def select_some_feats(self,isDump=True):
+        nPickFeat = (int)(self.data.nFeature*self.feature_fraction)
+        self.feat_cands = random.choices(population = list(range(self.data.nFeature)),k = nPickFeat)
+        #self.feat_cands = list(range(self.data.nFeature))
+        self.nFeat4Train = len(self.feat_cands)
+        if isDump:
+            print(f"====== select_some_feats len={self.nFeat4Train} feat=[{self.feat_cands[0:5]}...{self.feat_cands[-5:-1]}]")
 
     def train_on_batch(self, *batch, device):
         #with torch.autograd.set_detect_anomaly(True):
@@ -204,7 +220,8 @@ class Experiment(nn.Module):
         self.step += 1
         self.writer.add_scalar('train loss', loss.item(), self.step)
         self.metrics = {'loss': loss.item()}
-        del loss
+        del loss       
+        #if self.feature_fraction<1:self.select_some_feats(isDump=False)
         return self.metrics
 
     def evaluate_classification_error(self, X_test, y_test, device, batch_size=4096):
@@ -267,7 +284,9 @@ class Experiment(nn.Module):
         self.model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
         reg_Gate = dict_info["reg_Gate"] 
         loss_step = self.metrics['loss']
-        print(f"\n{self.step}\tnzParam={model_params(self.model)}\t{loss_step:.5f}\treg_Gate:{reg_Gate:.4g}\tT={time.time()-t0:.2f}\tVal MSE:{mse:.5f}" )  
+        print(f"\n{self.step}\tnP={model_params(self.model)},nF4={self.nFeat4Train}\t{loss_step:.5f}\treg_Gate:{reg_Gate:.4g}\tT={time.time()-t0:.2f}\tVal MSE:{mse:.5f}" )  
+        
+
 
         if False:   #two stage training 真令人失望啊
             all_grad = False if epoch%2==1 else True

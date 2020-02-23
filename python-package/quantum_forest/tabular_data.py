@@ -119,8 +119,7 @@ class TabularDataset:
                     self.X_test, self.y_test = self.X[test_index], self.Y[test_index]
             else:
                 print(f"====== TabularDataset::Fold_{fold}......")
-            listX = self.RemoveConstant(self.X_train,[self.X_train, self.X_valid, self.X_test])
-            self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]
+            
             mu, std = self.y_train.mean(), self.y_train.std()
             print("onFold:\tmean = %.5f, std = %.5f" % (mu, std))
             if False:   #不方便对比，应删除
@@ -135,7 +134,7 @@ class TabularDataset:
             listX, _ = self.quantile_trans_(self.random_state, self.X_train,
                     [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
             self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]
-            print(f"====== TabularDataset::quantile_transform time={time.time()-t0:.5f}")
+            print(f"====== TabularDataset::quantile_transform noise={self.quantile_noise} time={time.time()-t0:.5f}")
             gc.collect()
 
             if pkl_path is not None:
@@ -188,8 +187,16 @@ class TabularDataset:
             self.y_valid = data_dict['y_valid']
             self.X_test = data_dict['X_test']
             self.y_test = data_dict['y_test']
+            #数据源就被剖分。X_train中的常量特征还是没用啊
+            listX = self.RemoveConstant(self.X_train,[self.X_train, self.X_valid, self.X_test])
+            self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]    
+
+            self.nFeature = self.X_train.shape[1]
         else:
             self.X, self.Y = data_dict['X'],data_dict['Y']
+            listX = self.RemoveConstant(self.X,[self.X])
+            self.X = listX[0]
+            self.nFeature = self.X.shape[1]
         if False:
             if all(query in data_dict.keys() for query in ('query_train', 'query_valid', 'query_test')):
                 self.query_train = data_dict['query_train']

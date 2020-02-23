@@ -130,7 +130,7 @@ def dump_model_params(model):
         if param.requires_grad:
             nzParams += param.nelement()
             print(f"\t{name}={param.nelement()}")
-    print(f"========All parameters={nzParams}")
+    print(f"========All parameters={nzParams}\n\n")
     return nzParams
 
 def model_params(model):

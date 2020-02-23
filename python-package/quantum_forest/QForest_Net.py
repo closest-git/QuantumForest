@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-02-22 10:20:23
+@LastEditTime: 2020-02-22 17:02:11
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -148,18 +148,23 @@ class QForest_Net(nn.Module):
 
         self.pooling = None
         self.visual = visual
+        #self.nFeatInX = nFeat
         print("====== QForest_Net::__init__   OK!!!")        
         #print(self)
         dump_model_params(self)
+    
 
+  
     def forward(self, x):
-        #self.gates_cp.data.zero_()
+        if self.config.feature_fraction<1:
+            x=x[:,self.config.trainer.feat_cands]
+            
         if self.embeddings is not None:
             for layer in self.embeddings:
                 x = layer(x)
         for layer in self.layers:
             x = layer(x)
-            #self.gates_cp.data += layer.gates_cp
+            
         self.Regularization()       #统计Regularization
         if self.config.leaf_output == "distri2CNN": 
             x = self.cnn_model(x)

@@ -68,7 +68,13 @@ class DeTree(nn.Module):
         nBatch,in_feat = input.shape[0],input.shape[1]
         #att_max = torch.max(self.feat_attention)       无效
         #self.feat_attention.data = self.feat_attention.data / att_max
-        choice_weight = self.choice_function(self.feat_attention, dim=0)        #choice_function=entmax15
+        if self.config.feature_fraction<1:
+            attention = self.feat_attention[self.config.trainer.feat_cands,:]
+        else:
+            attention = self.feat_attention
+        choice_weight = self.choice_function(attention, dim=0)        #choice_function=entmax15
+        #choice_weight = attention       #
+
         #c_max = torch.max(choice_weight)
         #choice_weight[choice_weight < c_max] = 0
 
@@ -90,7 +96,7 @@ class DeTree(nn.Module):
             feature_values = torch.einsum('btf,ftd->btd', input_expand, choice_weight) #x=bt
             feature_values = feature_values.view(nBatch, self.num_trees, -1)
         else:
-            choice_weight = choice_weight.view(self.in_features,self.num_trees,-1)
+            choice_weight = choice_weight.view(choice_weight.shape[0],self.num_trees,-1)
             feature_values = torch.einsum('bf,fnd->bnd', input, choice_weight)
         return feature_values
     

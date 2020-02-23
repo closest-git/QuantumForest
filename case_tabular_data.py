@@ -163,6 +163,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
 
     wLearner=Learners[-1]
     trainer = quantum_forest.Experiment(
+        config,data,
         model=wLearner, loss_function=F.mse_loss,
         experiment_name=config.experiment,
         warm_start=False,   
@@ -170,6 +171,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         verbose=True,      #True
         n_last_checkpoints=5
     )   
+    
     trainer.SetLearner(wLearner)
     print(f"======  trainer.learner={trainer.model}\ntrainer.opt={trainer.opt}\n======  config={config.__dict__}")
     print(f"======  YY_train={np.linalg.norm(YY_train)}")
