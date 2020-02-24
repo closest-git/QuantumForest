@@ -85,7 +85,10 @@ class DecisionBlock(nn.Sequential):
             if not self.flatten_output:
                 outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.response_dim)
             if self.config.max_out:
-                outputs = torch.max(outputs, -1).values
+                if self.config.problem()=="classification":
+                    pass
+                else:
+                    outputs = torch.max(outputs, -1).values
                 # outputs = torch.mean(outputs, -1)      确实不如maxout
                 # outputs = outputs.mean(dim=-1)
             else:

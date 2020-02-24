@@ -27,6 +27,7 @@ data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
 #dataset = "YAHOO"
 dataset = "YEAR"
+#dataset = "CLICK"
 torch.cuda.set_device(0)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -189,18 +190,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         if trainer.step % report_frequency == 0:
             epoch=epoch+1
             if torch.cuda.is_available():   torch.cuda.empty_cache()
-            mse = trainer.AfterEpoch(epoch,data,YY_valid,best_mse)
-            if False:
-                trainer.save_checkpoint()
-                trainer.average_checkpoints(out_tag='avg')
-                trainer.load_checkpoint(tag='avg')
-                dict_info,prediction = trainer.evaluate_mse(data.X_valid, YY_valid, device=device, batch_size=eval_batch_size)
-                if config.cascade_LR:
-                    prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
-                mse = ((YY_valid - prediction) ** 2).mean()
-                model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
-                reg_Gate = dict_info["reg_Gate"] 
-                print(f"\nloss_{trainer.step}\t{metrics['loss']:.5f}\treg_Gate:{reg_Gate:.4g}\tVal MSE:{mse:.5f}" )  
+            mse = trainer.AfterEpoch(epoch,data.X_valid,YY_valid,best_mse)            
             if mse < best_mse:
                 best_mse = mse
                 best_step_mse = trainer.step
@@ -210,7 +200,6 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                 trainer.load_checkpoint()  # last
                 trainer.remove_old_temp_checkpoints()
             VisualAfterEpoch(epoch,visual,config,mse)
-
             if False and epoch%10==9: #有bug啊
                 #YY_valid = YY_valid- prediction
                 dict_info,train_pred = trainer.evaluate_mse(data.X_train, YY_train, device=config.device, batch_size=config.eval_batch_size)
@@ -232,18 +221,20 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             print(f"Best Val MSE: {best_mse:.5f}")
             break
     if data.X_test is not None:
-        if torch.cuda.is_available():  torch.cuda.empty_cache()
-        trainer.load_checkpoint(tag='best_mse')
-        t0=time.time()
-        dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=device, batch_size=config.eval_batch_size)
-        if config.cascade_LR:
-            prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
-        #prediction = prediction*data.accu_scale+data.Y_mu_0
-        prediction = data.Y_trans(prediction)
-        mse = ((data.y_test - prediction) ** 2).mean()
-        #mse = dict_info["mse"]
-        reg_Gate = dict_info["reg_Gate"]
-        print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} \treg_Gate:{reg_Gate:.4g}time={time.time()-t0:.2f}' )
+        mse = trainer.AfterEpoch(epoch,data.X_test, YY_test,best_mse,isTest=True) 
+        if False:
+            if torch.cuda.is_available():  torch.cuda.empty_cache()
+            trainer.load_checkpoint(tag='best_mse')
+            t0=time.time()
+            dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=device, batch_size=config.eval_batch_size)
+            if config.cascade_LR:
+                prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
+            #prediction = prediction*data.accu_scale+data.Y_mu_0
+            prediction = data.Y_trans(prediction)
+            mse = ((data.y_test - prediction) ** 2).mean()
+            #mse = dict_info["mse"]
+            reg_Gate = dict_info["reg_Gate"]
+            print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} \treg_Gate:{reg_Gate:.4g}time={time.time()-t0:.2f}' )
         best_mse = mse
     return best_mse,mse
 
@@ -272,12 +263,12 @@ def Fold_learning(fold_n,data,config,visual):
 if __name__ == "__main__":
     data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
     #data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True)
-    config = quantum_forest.QForest_config(dataset,0.002,feat_info="importance")   #,feat_info="importance"
+    config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"
     random_state = 42
     quantum_forest.OnInitInstance(random_state)
 
     config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"    
-    if dataset=="YAHOO" or dataset=="MICROSOFT":
+    if dataset=="YAHOO" or dataset=="MICROSOFT" or dataset=="CLICK":
         config,visual = InitExperiment(config, 0)
         data.onFold(0,config,pkl_path=f"{data_root}{dataset}/FOLD_Quantile_.pickle")
         Fold_learning(0,data, config,visual)

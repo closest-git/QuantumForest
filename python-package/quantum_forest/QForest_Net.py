@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-02-24 10:01:25
+@LastEditTime: 2020-02-24 13:25:38
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -174,7 +174,11 @@ class QForest_Net(nn.Module):
             #out += x1
             return out
         else:
-            x = x.mean(dim=-1)        #self.pooling(x)
+            if self.config.problem()=="classification":
+                assert len(x.shape)==3
+                x = x.mean(dim=-2)
+            else:
+                x = x.mean(dim=-1)        #self.pooling(x)
             #x = torch.max(x,dim=-1).values
             return x
     

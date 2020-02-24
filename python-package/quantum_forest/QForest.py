@@ -1,16 +1,17 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-02-24 09:48:32
+@LastEditTime: 2020-02-24 14:53:36
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
 '''
 class QForest_config:
-    def __init__(self,data_set, lr_base, nLayer=1,choice_func="r_0.5",feat_info = None,random_seed=42):
+    def __init__(self,data, lr_base, nLayer=1,choice_func="r_0.5",feat_info = None,random_seed=42):
         self.model = "QForest"
         #self.tree_type = tree_type
-        self.data_set = data_set
+        self.data = data
+        self.data_set = data.name;      data_set = data.name
         self.lr_base = lr_base
         self.nLayer = nLayer
         self.seed = random_seed
@@ -45,7 +46,7 @@ class QForest_config:
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
             self.depth, self.batch_size, self.nTree = 5, 256, 2048  # 0.619
             # depth, batch_size, nTree = 7, 256, 512             #区别不大，而且有显存泄漏
-            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 2048, 3, 1
+            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 256, 3, 1
             if self.leaf_output == "distri2CNN":  
                 self.depth = 5;     self.batch_size=256;       self.data_normal = ""
                 self.nLayers=1;     self.response_dim = 3;      
@@ -53,11 +54,6 @@ class QForest_config:
                 self.lr_base = self.lr_base/2
         elif data_set=="YAHOO":
             #反复测试 self.response_dim=5要优于3
-            self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 2048,5
-            self.depth, self.batch_size, self.nTree, self.response_dim = 5, 512, 2048, 3
-            self.depth, self.batch_size, self.nTree, self.response_dim = 5, 1024, 1024, 3  # 0.5943 收敛快
-            self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 4096, 3  # 0.5895
-            self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 6144, 3  # 0.5895
             self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 2048, 3  # 0.5913->0.5892(maxout)
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 2048, 3, 1  #
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 256, 3, 1  #
@@ -81,11 +77,22 @@ class QForest_config:
                 self.nLayers=1;     self.response_dim = 8;      
                 self.T_w = 16;      self.T_h = 16;              self.nTree = self.T_w*self.T_h; 
                 self.lr_base = self.lr_base/2
-        
+        elif data_set=="CLICK":
+            self.feat_info = None
+            self.response_dim = data.nClasses
+            self.depth, self.batch_size, self.nTree, self.nLayers = 4, 256, 1024, 1
+            if self.leaf_output == "distri2CNN":  
+                self.depth = 5;     self.batch_size=256;       self.data_normal = ""
+                self.nLayers=1;        
+                self.T_w = 32;      self.T_h = 32;              self.nTree = self.T_w*self.T_h; 
+                self.lr_base = self.lr_base/2
         
         if self.data_normal == "NN":
             self.feat_info = ""
 
+    def problem(self):
+        return self.data.problem()
+        
     def model_info(self):
         return "QF_shallow"
 

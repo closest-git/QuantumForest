@@ -283,8 +283,8 @@ class DeTree(nn.Module):
             feature_values = self.get_attention_value(input)
         # ^--[batch_size, num_trees, depth]
 
-        #threshold_logits = (feature_values - self.feature_thresholds) * torch.exp(-self.log_temperatures)
-        threshold_logits = feature_values * torch.exp(-self.log_temperatures)
+        threshold_logits = (feature_values - self.feature_thresholds) * torch.exp(-self.log_temperatures)
+        #threshold_logits = feature_values * torch.exp(-self.log_temperatures)   #year实测，居然差不多！！！参见YEAR_nob_74.8.info
         #threshold_logits = (feature_values ) * torch.exp(-self.log_temperatures) - self.feature_thresholds 差不多
         if False:  #relative distance has no effect
             threshold_logits = threshold_logits/(torch.abs(self.feature_thresholds)+1.0e-4)

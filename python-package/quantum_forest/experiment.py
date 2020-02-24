@@ -206,8 +206,13 @@ class Experiment(nn.Module):
         
         #if self.model.config.reg_Gate!=0 and self.step%3==1:            
         #    loss = self.model.gates_cp*self.model.config.reg_Gate
-        assert y_output.shape==y_batch.shape
-        loss = F.mse_loss(y_output, y_batch)
+        
+        if self.data.problem()=="classification":
+            #assert list(y_output.shape)==[y_batch.shape,self.data.nClasses]
+            loss = F.cross_entropy(y_output,y_batch.long())
+        else:
+            assert y_output.shape==y_batch.shape
+            loss = F.mse_loss(y_output, y_batch)
         loss = loss.mean()
         #loss = self.model.reg_L1*self.model.config.reg_L1
         loss = loss+self.model.reg_L1*self.model.config.reg_L1+self.model.reg_L2*self.model.config.reg_Gate 
@@ -229,10 +234,12 @@ class Experiment(nn.Module):
         y_test = check_numpy(y_test)
         self.model.train(False)
         with torch.no_grad():
-            logits = process_in_chunks(self.model, X_test, batch_size=batch_size)
+            logits,dict_info = process_in_chunks(self.model, X_test, batch_size=batch_size)
             logits = check_numpy(logits)
             error_rate = (y_test != np.argmax(logits, axis=1)).mean()
-        return error_rate
+        dict_info["ERR"] = error_rate
+        #return error_rate
+        return dict_info
 
     def evaluate_mse(self, X_test, y_test, device, batch_size=4096):
         X_test = torch.as_tensor(X_test, device=device)
@@ -244,7 +251,7 @@ class Experiment(nn.Module):
             error_rate = ((y_test - prediction) ** 2).mean()    
         if torch.cuda.is_available():   
             torch.cuda.empty_cache()
-        dict_info["mse"] = error_rate
+        dict_info["ERR"] = error_rate
         return dict_info,prediction
     
     def evaluate_auc(self, X_test, y_test, device, batch_size=512):
@@ -269,26 +276,36 @@ class Experiment(nn.Module):
             logloss = log_loss(check_numpy(to_one_hot(y_test)), logits)
         return logloss
     
-    def AfterEpoch(self,epoch,data,YY_valid,best_mse):
+    def AfterEpoch(self,epoch,XX_,YY_,best_mse,isTest=False):
         t0=time.time()
         config = self.model.config
-        if config.average_training: #有意思，最终可以提高Val MSE
+        if isTest:
+            self.load_checkpoint(tag='best_mse')
+        elif config.average_training: #有意思，最终可以提高Val MSE
             self.save_checkpoint()
             self.average_checkpoints(out_tag='avg')
             self.load_checkpoint(tag='avg')
-        dict_info,prediction = self.evaluate_mse(data.X_valid, YY_valid, device=config.device, batch_size=config.eval_batch_size)
+
+        if self.data.problem()=="classification":
+            dict_info = self.evaluate_classification_error(XX_,YY_, device=config.device, batch_size=config.eval_batch_size)
+            mse = dict_info['ERR']
+        else:
+            dict_info,prediction = self.evaluate_mse(XX_,YY_, device=config.device, batch_size=config.eval_batch_size)
+            prediction = self.data.Y_trans(prediction)
+            mse = ((YY_ - prediction) ** 2).mean()        
+        
         if config.cascade_LR:
-            prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
-        #prediction = prediction*data.accu_scale+data.Y_mu_0
-        prediction = data.Y_trans(prediction)
-        mse = ((data.y_valid - prediction) ** 2).mean()
+            prediction=LinearRgressor.AfterPredict(XX_,prediction)   
+
 
         self.model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)
         reg_Gate = dict_info["reg_Gate"] 
         loss_step = self.metrics['loss']
-        print(  f"\n{self.step}\tnP={model_params(self.model)},nF4={self.nFeat4Train}\t{loss_step:.5f}\treg_Gate:{reg_Gate:.4g}\tT={time.time()-t0:.2f}"\
+        if isTest:
+            print(f'====== Best step: {self.step} test={XX_.shape} ACCU@Test={mse:.5f} \treg_Gate:{reg_Gate:.4g}time={time.time()-t0:.2f}' )
+        else:
+            print(  f"\n{self.step}\tnP={model_params(self.model)},nF4={self.nFeat4Train}\t{loss_step:.5f}\treg_Gate:{reg_Gate:.4g}\tT={time.time()-t0:.2f}"\
                 f"\tVal MSE:{mse:.4f}" )  
-        
 
 
         if False:   #two stage training 真令人失望啊

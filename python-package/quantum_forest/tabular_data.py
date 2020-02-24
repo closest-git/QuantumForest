@@ -97,7 +97,7 @@ class TabularDataset:
     def Y_trans(self,Y,isPredict=True):
         method = self.Y_trans_method
         if isPredict:
-            if method=="log":
+            if method=="log":   #确实不行啊
                 Y = np.exp(Y)-1
             elif method=="normal":
                 Y = Y*self.accu_scale+self.Y_mu_0
@@ -105,7 +105,7 @@ class TabularDataset:
                 pass
         else:
             mu, std = self.y_train.mean(), self.y_train.std()
-            print("====== onFold::Y_trans\tmean = %.5f, std = %.5f" % (mu, std))
+            print("====== onFold::Y_trans_\tmean = %.5f, std = %.5f" % (mu, std))
             self.Y_mu_0=mu;                 self.Y_std_0=std            
             self.accu_scale = 1
 
@@ -121,6 +121,13 @@ class TabularDataset:
                 self.accu_scale=1
         return Y.astype(np.float32)
 
+    def problem(self):
+        if hasattr(self,"nClasses"):
+            assert self.nClasses>0
+            return "classification"
+        else:
+            return "regression"
+
     def onFold(self,fold,config,pkl_path=None, train_index=None, valid_index=None, test_index=None):
         if pkl_path is not None:
             print("====== onFold pkl_path={} ......".format(pkl_path))
@@ -128,7 +135,10 @@ class TabularDataset:
             with open(pkl_path, "rb") as fp:
                 [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,\
             self.quantile_noise,self.Y_trans_method,self.accu_scale,self.Y_mu_0, self.Y_std_0,self.zero_feats] = pickle.load(fp)
-            print("mean = %.5f, std = %.5f accu_scale =  %.5f" % (self.Y_mu_0, self.Y_std_0,self.accu_scale))
+            if self.problem()=="classification":
+                print(f"\tnClasses={self.nClasses}" )
+            else:
+                print("\tmean = %.5f, std = %.5f accu_scale =  %.5f" % (self.Y_mu_0, self.Y_std_0,self.accu_scale))
             gc.collect()
         else:
             if train_index is not None:
@@ -139,8 +149,12 @@ class TabularDataset:
                     self.X_test, self.y_test = self.X[test_index], self.Y[test_index]
             else:
                 print(f"====== TabularDataset::Fold_{fold}......")
-            self.Y_trans_method = "normal"
-            self.y_train = self.Y_trans(self.y_train,isPredict=False)
+            if hasattr(self,"nClasses"):    #classification
+                self.y_train = self.y_train.astype(np.float32)
+                self.Y_trans_method,self.accu_scale,self.Y_mu_0, self.Y_std_0=None,None,None,None
+            else:   #regression
+                self.Y_trans_method = "normal"
+                self.y_train = self.Y_trans(self.y_train,isPredict=False)
             self.y_valid = self.y_valid.astype(np.float32)
             if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)
             
@@ -202,7 +216,7 @@ class TabularDataset:
             data_dict = kwargs
 
         self.data_path = data_path
-        self.dataset = dataset
+        self.name = dataset
         if 'X_train' in data_dict:
             self.X_train = data_dict['X_train']
             self.y_train = data_dict['y_train']
@@ -215,28 +229,21 @@ class TabularDataset:
             self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]    
 
             self.nFeature = self.X_train.shape[1]
+            
         else:
             self.X, self.Y = data_dict['X'],data_dict['Y']
             listX = self.RemoveConstant(self.X,[self.X])
             self.X = listX[0]
             self.nFeature = self.X.shape[1]
+        if "num_classes" in data_dict:
+            self.nClasses = data_dict["num_classes"]            
+
         if False:
             if all(query in data_dict.keys() for query in ('query_train', 'query_valid', 'query_test')):
                 self.query_train = data_dict['query_train']
                 self.query_valid = data_dict['query_valid']
                 self.query_test = data_dict['query_test']
-
-            if normalize:
-                mean = np.mean(self.X_train, axis=0)
-                std = np.std(self.X_train, axis=0)
-                self.X_train = (self.X_train - mean) / std
-                self.X_valid = (self.X_valid - mean) / std
-                self.X_test = (self.X_test - mean) / std
-
-            if quantile_transform:
-                listX,_ = self.quantile_transform(random_state, self.X_train, [self.X_train,self.X_valid,self.X_test], distri='normal', noise=quantile_noise)
-                self.X_train,self.X_valid,self.X_test = listX[0],listX[1],listX[2]
-
+            
     def to_csv(self, path=None):
         if path == None:
             path = os.path.join(self.data_path, self.dataset)
@@ -600,36 +607,55 @@ def fetch_YAHOO(path):
     return data_dict
 
 def fetch_CLICK(path, valid_size=100_000, validation_seed=None):
-    # based on: https://www.kaggle.com/slamnz/primer-airlines-delay
-    csv_path = os.path.join(path, 'click.csv')
-    if not os.path.exists(csv_path):
-        os.makedirs(path, exist_ok=True)
-        download('https://www.dropbox.com/s/w43ylgrl331svqc/click.csv?dl=1', csv_path)
+    pkl_path = f'{path}/click_set_1_.pickle'
+    if os.path.isfile(pkl_path):
+        print("====== fetch_CLICK@{} ......".format(pkl_path))
+        with open(pkl_path, "rb") as fp:
+            data_dict = pickle.load(fp)
+        print(f"{data_dict['X_train'][0:5,:]}")
+        print(f"{data_dict['X_test'][0:5,:]}")
+        print(f"{data_dict['X_valid'][0:5,:]}")
+    else:
+        # based on: https://www.kaggle.com/slamnz/primer-airlines-delay
+        csv_path = os.path.join(path, 'click.csv')
+        if not os.path.exists(csv_path):
+            os.makedirs(path, exist_ok=True)
+            download('https://www.dropbox.com/s/w43ylgrl331svqc/click.csv?dl=1', csv_path)
 
-    data = pd.read_csv(csv_path, index_col=0)
-    X, y = data.drop(columns=['target']), data['target']
-    X_train, X_test = X[:-100_000].copy(), X[-100_000:].copy()
-    y_train, y_test = y[:-100_000].copy(), y[-100_000:].copy()
+        data = pd.read_csv(csv_path, index_col=0)
+        X, y = data.drop(columns=['target']), data['target']
+        X_train, X_test = X[:-100_000].copy(), X[-100_000:].copy()
+        y_train, y_test = y[:-100_000].copy(), y[-100_000:].copy()
 
-    y_train = (y_train.values.reshape(-1) == 1).astype('int64')
-    y_test = (y_test.values.reshape(-1) == 1).astype('int64')
+        y_train = (y_train.values.reshape(-1) == 1).astype('int64')
+        y_test = (y_test.values.reshape(-1) == 1).astype('int64')
 
-    cat_features = ['url_hash', 'ad_id', 'advertiser_id', 'query_id',
-                    'keyword_id', 'title_id', 'description_id', 'user_id']
+        cat_features = ['url_hash', 'ad_id', 'advertiser_id', 'query_id',
+                        'keyword_id', 'title_id', 'description_id', 'user_id']
 
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train, y_train, test_size=valid_size, random_state=validation_seed)
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_train, y_train, test_size=valid_size, random_state=validation_seed)
 
-    cat_encoder = LeaveOneOutEncoder()
-    cat_encoder.fit(X_train[cat_features], y_train)
-    X_train[cat_features] = cat_encoder.transform(X_train[cat_features])
-    X_val[cat_features] = cat_encoder.transform(X_val[cat_features])
-    X_test[cat_features] = cat_encoder.transform(X_test[cat_features])
-    return dict(
-        X_train=X_train.values.astype('float32'), y_train=y_train,
-        X_valid=X_val.values.astype('float32'), y_valid=y_val,
-        X_test=X_test.values.astype('float32'), y_test=y_test
-    )
+        num_features = X_train.shape[1]
+        num_classes = len(set(y_train))
+        cat_encoder = LeaveOneOutEncoder()
+        cat_encoder.fit(X_train[cat_features], y_train)
+        X_train[cat_features] = cat_encoder.transform(X_train[cat_features])
+        X_val[cat_features] = cat_encoder.transform(X_val[cat_features])
+        X_test[cat_features] = cat_encoder.transform(X_test[cat_features])
+        data_dict = dict(
+            X_train=X_train.values.astype('float32'), y_train=y_train,
+            X_valid=X_val.values.astype('float32'), y_valid=y_val,
+            X_test=X_test.values.astype('float32'), y_test=y_test,
+            num_features = num_features,
+            num_classes = num_classes
+        )
+        #print(f"====== fetch_CLICK:\tX_train={X_train.shape}\tX_valid={X_valid.shape}\tX_test={X_test.shape}")
+        with open(pkl_path, "wb") as fp:
+            pickle.dump(data_dict,fp)
+    print(f"====== fetch_CLICK:\tX_train={data_dict['X_train'].shape}\tX_valid={data_dict['X_valid'].shape}"\
+        f"\tX_test={data_dict['X_test'].shape}")
+    return data_dict        
 
 
 DATASETS = {
