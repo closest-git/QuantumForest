@@ -283,7 +283,8 @@ class DeTree(nn.Module):
             feature_values = self.get_attention_value(input)
         # ^--[batch_size, num_trees, depth]
 
-        threshold_logits = (feature_values - self.feature_thresholds) * torch.exp(-self.log_temperatures)
+        #threshold_logits = (feature_values - self.feature_thresholds) * torch.exp(-self.log_temperatures)
+        threshold_logits = feature_values * torch.exp(-self.log_temperatures)
         #threshold_logits = (feature_values ) * torch.exp(-self.log_temperatures) - self.feature_thresholds 差不多
         if False:  #relative distance has no effect
             threshold_logits = threshold_logits/(torch.abs(self.feature_thresholds)+1.0e-4)
@@ -322,9 +323,7 @@ class DeTree(nn.Module):
                 alpha=torch.sum(P[:,0:nLeaf//2])/P_all
                 C = -0.5*torch.log(alpha)+0.5*torch.log(1-alpha)
                 #self.gates_cp = torch.sum(C)
-            else:
-                pass
-                #self.gates_cp = torch.norm(self.gate_values,p=2)/self.gate_values.numel()
+            
         if self.config.leaf_output == "leaf_distri":
             response = torch.einsum('btl,tcl->btc', response_weights, self.response)            # ^-- [batch_size, num_trees, distri_dim]
             return response.flatten(1, 2) if self.flatten_output else response

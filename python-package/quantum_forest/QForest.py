@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-02-23 15:07:27
+@LastEditTime: 2020-02-24 09:48:32
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
@@ -31,7 +31,7 @@ class QForest_config:
         self.plot_attention = True
         self.data_normal = ""       #"NN"     "Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
         self.leaf_output = "distri2CNN"       #"distri2fc" "distri2CNN"  "Y" "leaf_distri"
-        self.reg_L1 = 0#1.0e-7        #-4,-5,-6,-7,-8  -7略有提高
+        self.reg_L1 = 0        #-4,-5,-6,-7,-8  -7略有提高
         self.reg_Gate = 0 
         self.path_way="TREE_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
         
@@ -69,12 +69,13 @@ class QForest_config:
                 self.response_dim = -1;  
                 self.lr_base = self.lr_base/2
             if self.leaf_output == "distri2CNN":  
-                self.depth = 4;     self.batch_size=256;       self.data_normal = ""
-                self.nLayers=1;     self.response_dim = 1;      #取3容易振荡
+                self.depth = 5;     self.batch_size=256;       self.data_normal = ""
+                self.nLayers=1;     self.response_dim = 3;      
                 self.T_w = 16;      self.T_h = 16;              self.nTree = self.T_w*self.T_h; 
                 self.lr_base = self.lr_base/2
         elif data_set=="MICROSOFT":
-            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 256, 3, 1
+            self.leaf_output = "leaf_distri"
+            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 256, 8, 1
             if self.leaf_output == "distri2CNN":  
                 self.depth = 5;     self.batch_size=256;       self.data_normal = ""
                 self.nLayers=1;     self.response_dim = 8;      

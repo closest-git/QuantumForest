@@ -61,14 +61,7 @@ class TabularDataset:
         return listX
 
     #确实有用，需要进一步分析
-    def quantile_trans_(self, random_state, X_samp, listX, normalize=False,distri='normal', noise=0):
-        if normalize:
-            mean = np.mean(self.X_train, axis=0)
-            std = np.std(self.X_train, axis=0)
-            self.X_train = (self.X_train - mean) / std
-            self.X_valid = (self.X_valid - mean) / std
-            self.X_test = (self.X_test - mean) / std
-
+    def quantile_trans_(self, random_state, X_samp, listX, distri='normal', noise=0):
         quantile_train = np.copy(X_samp)
         if noise:
             stds = np.std(quantile_train, axis=0, keepdims=True)
@@ -101,13 +94,40 @@ class TabularDataset:
                 self.X = self.X[:, picks]
         return feat_info
 
+    def Y_trans(self,Y,isPredict=True):
+        method = self.Y_trans_method
+        if isPredict:
+            if method=="log":
+                Y = np.exp(Y)-1
+            elif method=="normal":
+                Y = Y*self.accu_scale+self.Y_mu_0
+            else:
+                pass
+        else:
+            mu, std = self.y_train.mean(), self.y_train.std()
+            print("====== onFold::Y_trans\tmean = %.5f, std = %.5f" % (mu, std))
+            self.Y_mu_0=mu;                 self.Y_std_0=std            
+            self.accu_scale = 1
+
+            if method=="log":
+                Y = np.log(Y+1)
+            elif method=="normal":   #
+                Y = ((Y - self.Y_mu_0) / self.Y_std_0).astype(np.float32)
+                #self.y_valid = ((self.y_valid - mu) / std).astype(np.float32)
+                #if self.y_test is not None:     self.y_test = ((self.y_test - mu) / std).astype(np.float32)
+                self.accu_scale = self.Y_std_0
+            else:
+                Y = Y.astype(np.float32)
+                self.accu_scale=1
+        return Y.astype(np.float32)
 
     def onFold(self,fold,config,pkl_path=None, train_index=None, valid_index=None, test_index=None):
         if pkl_path is not None:
             print("====== onFold pkl_path={} ......".format(pkl_path))
         if pkl_path is not None and os.path.isfile(pkl_path):
             with open(pkl_path, "rb") as fp:
-                [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,self.accu_scale,self.Y_mu_0, self.Y_std_0,self.zero_feats] = pickle.load(fp)
+                [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,\
+            self.quantile_noise,self.Y_trans_method,self.accu_scale,self.Y_mu_0, self.Y_std_0,self.zero_feats] = pickle.load(fp)
             print("mean = %.5f, std = %.5f accu_scale =  %.5f" % (self.Y_mu_0, self.Y_std_0,self.accu_scale))
             gc.collect()
         else:
@@ -119,31 +139,31 @@ class TabularDataset:
                     self.X_test, self.y_test = self.X[test_index], self.Y[test_index]
             else:
                 print(f"====== TabularDataset::Fold_{fold}......")
-            
-            mu, std = self.y_train.mean(), self.y_train.std()
-            print("onFold:\tmean = %.5f, std = %.5f" % (mu, std))
-            if True:   #y_train归一化
-                self.y_train = ((self.y_train - mu) / std).astype(np.float32)
-                #self.y_valid = ((self.y_valid - mu) / std).astype(np.float32)
-                #if self.y_test is not None:     self.y_test = ((self.y_test - mu) / std).astype(np.float32)
-                self.accu_scale=std
-            else:
-                self.y_train = self.y_train.astype(np.float32)
-                self.accu_scale=1
+            self.Y_trans_method = "normal"
+            self.y_train = self.Y_trans(self.y_train,isPredict=False)
             self.y_valid = self.y_valid.astype(np.float32)
             if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)
             
+            
             t0=time.time()
+            if False:
+                mean = np.mean(self.X_train, axis=0)
+                std = np.std(self.X_train, axis=0)
+                self.X_train = (self.X_train - mean) / std
+                self.X_valid = (self.X_valid - mean) / std
+                self.X_test = (self.X_test - mean) / std
             listX, _ = self.quantile_trans_(self.random_state, self.X_train,
                     [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
-            self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]
+            self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]            
             print(f"====== TabularDataset::quantile_transform noise={self.quantile_noise} time={time.time()-t0:.5f}")
             gc.collect()
 
             if pkl_path is not None:
                 with open(pkl_path, "wb") as fp:
-                    pickle.dump([self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,self.accu_scale,mu, std,self.zero_feats], fp)
+                    pickle.dump([self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,\
+                    self.quantile_noise,self.Y_trans_method,self.accu_scale,self.Y_mu_0, self.Y_std_0,self.zero_feats], fp)
             gc.collect()
+        std = np.std(self.X_train, axis=0)
         if False:
             plt.hist(self.y_train);         plt.show()
             plt.hist(self.y_valid);         plt.show()

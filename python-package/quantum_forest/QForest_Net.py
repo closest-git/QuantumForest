@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-02-23 14:16:33
+@LastEditTime: 2020-02-24 10:01:25
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -157,6 +157,7 @@ class QForest_Net(nn.Module):
 
   
     def forward(self, x):
+        nBatch = x.shape[0]
         if self.config.feature_fraction<1:
             x=x[:,self.config.trainer.feat_cands]
             
@@ -168,8 +169,10 @@ class QForest_Net(nn.Module):
             
         self.Regularization()       #统计Regularization
         if self.config.leaf_output == "distri2CNN": 
-            x = self.cnn_model(x)
-            return x
+            out = self.cnn_model(x)
+            #x1 = x.contiguous().view(nBatch, -1).mean(dim=-1)  #可惜效果不明显
+            #out += x1
+            return out
         else:
             x = x.mean(dim=-1)        #self.pooling(x)
             #x = torch.max(x,dim=-1).values
@@ -187,8 +190,8 @@ class QForest_Net(nn.Module):
             a = torch.sum(torch.pow(gate_values, 2))/gate_values.numel()
             l2 = l2+a
         self.reg_L2 = l2     
-        if self.config.reg_Gate>0:
-            reg = reg+self.reg_L2*self.config.reg_Gate 
+        #if self.config.reg_Gate>0:            reg = reg+self.reg_L2*self.config.reg_Gate 
+        #return reg
         return reg
     
     def get_variables(self,var_dic):

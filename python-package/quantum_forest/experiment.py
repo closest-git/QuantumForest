@@ -209,7 +209,7 @@ class Experiment(nn.Module):
         assert y_output.shape==y_batch.shape
         loss = F.mse_loss(y_output, y_batch)
         loss = loss.mean()
-        #loss += self.model.Regularization()
+        #loss = self.model.reg_L1*self.model.config.reg_L1
         loss = loss+self.model.reg_L1*self.model.config.reg_L1+self.model.reg_L2*self.model.config.reg_Gate 
         #loss = self.model.reg_L2*self.model.config.reg_Gate
 
@@ -279,7 +279,8 @@ class Experiment(nn.Module):
         dict_info,prediction = self.evaluate_mse(data.X_valid, YY_valid, device=config.device, batch_size=config.eval_batch_size)
         if config.cascade_LR:
             prediction=LinearRgressor.AfterPredict(data.X_valid,prediction)
-        prediction = prediction*data.accu_scale+data.Y_mu_0
+        #prediction = prediction*data.accu_scale+data.Y_mu_0
+        prediction = data.Y_trans(prediction)
         mse = ((data.y_valid - prediction) ** 2).mean()
 
         self.model.AfterEpoch(isBetter=mse < best_mse, accu=mse,epoch=epoch)

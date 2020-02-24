@@ -143,7 +143,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
 
     if False:       # trigger data-aware init,作用不明显
         with torch.no_grad():
-            res = model(torch.as_tensor(data.X_train[:1000], device=device))
+            res = qForest(torch.as_tensor(data.X_train[:1000], device=device))
     #if torch.cuda.device_count() > 1:        model = nn.DataParallel(model)
 
     #weight_decay的值需要反复适配       如取1.0e-6 还可以  0.61142-0.58948
@@ -223,7 +223,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                 wLearner=qForest#Learners[-1]
                 print(f"NODE_test::Expand@{epoch} eval_train={mse_train:.2f} YY_train={np.linalg.norm(YY_train)}")
                 trainer.SetModel(wLearner)
-                                                                     
+
         if trainer.step>50000:
             break
         if trainer.step > best_step_mse + early_stopping_rounds:
@@ -238,7 +238,8 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=device, batch_size=config.eval_batch_size)
         if config.cascade_LR:
             prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
-        prediction = prediction*data.accu_scale+data.Y_mu_0
+        #prediction = prediction*data.accu_scale+data.Y_mu_0
+        prediction = data.Y_trans(prediction)
         mse = ((data.y_test - prediction) ** 2).mean()
         #mse = dict_info["mse"]
         reg_Gate = dict_info["reg_Gate"]
