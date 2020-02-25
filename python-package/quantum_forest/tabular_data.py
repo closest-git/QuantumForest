@@ -150,14 +150,13 @@ class TabularDataset:
             else:
                 print(f"====== TabularDataset::Fold_{fold}......")
             if hasattr(self,"nClasses"):    #classification
-                self.y_train = self.y_train.astype(np.float32)
+                #self.y_train = self.y_train.astype(np.float32)
                 self.Y_trans_method,self.accu_scale,self.Y_mu_0, self.Y_std_0=None,None,None,None
             else:   #regression
                 self.Y_trans_method = "normal"
                 self.y_train = self.Y_trans(self.y_train,isPredict=False)
-            self.y_valid = self.y_valid.astype(np.float32)
-            if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)
-            
+                self.y_valid = self.y_valid.astype(np.float32)
+                if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)            
             
             t0=time.time()
             if False:
@@ -169,7 +168,7 @@ class TabularDataset:
             listX, _ = self.quantile_trans_(self.random_state, self.X_train,
                     [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
             self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]            
-            print(f"====== TabularDataset::quantile_transform noise={self.quantile_noise} time={time.time()-t0:.5f}")
+            print(f"====== TabularDataset::quantile_transform X_train={self.X_train.shape} X_valid={self.X_valid.shape} noise={self.quantile_noise} time={time.time()-t0:.5f}")
             gc.collect()
 
             if pkl_path is not None:
@@ -451,13 +450,12 @@ def fetch_YEAR(path, train_size=None, valid_size=None, test_size=51630):
 
 
 def fetch_HIGGS(path, train_size=None, valid_size=None, test_size=5 * 10 ** 5):
-    pkl_path = f'{path}/HIGGS_.pickle'
+    pkl_path = f'{path}/HIGGS__set_1_.pickle'
     if os.path.isfile(pkl_path):
         print("====== fetch_HIGGS@{} ......".format(pkl_path))
         with open(pkl_path, "rb") as fp:
             data_dict = pickle.load(fp)
-        #X_train=(580539, 0)	X_valid=(142873, 0)	X_test=(241521, 0)
-        print(f"====== fetch_HIGGS:\tX_={data_dict['X'].shape}\tY={data_dict['Y'].shape}")
+        #print(f"====== fetch_HIGGS:\tX_={data_dict['X'].shape}\tY={data_dict['Y'].shape}")
     else:
         data_path = os.path.join(path, 'higgs.csv')
 
@@ -471,43 +469,52 @@ def fetch_HIGGS(path, train_size=None, valid_size=None, test_size=5 * 10 ** 5):
         n_features = 29
         types = {i: (np.float32 if i != 0 else np.int) for i in range(n_features)}
         data = pd.read_csv(data_path, header=None, dtype=types)
-    if True:
-        data_dict={'X':data.iloc[:, 1:].values, 'Y':data.iloc[:, 0].values}
+        num_features = data.shape[1]-1
+        Y=data.iloc[:, 0].values
+        num_classes = len(set(Y))
+        if False:            
+            data_dict={'X':data.iloc[:, 1:].values.astype(np.float32), 'Y':Y,
+                'num_features':num_features,                'num_classes':num_classes
+                }             
+        else:       #为了和NODE对比
+            data_train, data_test = data.iloc[:-test_size], data.iloc[-test_size:]
+
+            X_train, y_train = data_train.iloc[:, 1:].values, data_train.iloc[:, 0].values
+            X_test, y_test = data_test.iloc[:, 1:].values, data_test.iloc[:, 0].values
+
+            if all(sizes is None for sizes in (train_size, valid_size)):
+                train_idx_path = os.path.join(path, 'stratified_train_idx.txt')
+                valid_idx_path = os.path.join(path, 'stratified_valid_idx.txt')
+                if not all(os.path.exists(fname) for fname in (train_idx_path, valid_idx_path)):
+                    download("https://www.dropbox.com/s/i2uekmwqnp9r4ix/stratified_train_idx.txt?dl=1", train_idx_path)
+                    download("https://www.dropbox.com/s/wkbk74orytmb2su/stratified_valid_idx.txt?dl=1", valid_idx_path)
+                train_idx = pd.read_csv(train_idx_path, header=None)[0].values
+                valid_idx = pd.read_csv(valid_idx_path, header=None)[0].values
+            else:
+                assert train_size, "please provide either train_size or none of sizes"
+                if valid_size is None:
+                    valid_size = len(X_train) - train_size
+                    assert valid_size > 0
+                if train_size + valid_size > len(X_train):
+                    warnings.warn('train_size + valid_size = {} exceeds dataset size: {}.'.format(
+                        train_size + valid_size, len(X_train)), Warning)
+
+                shuffled_indices = np.random.permutation(np.arange(len(X_train)))
+                train_idx = shuffled_indices[:train_size]
+                valid_idx = shuffled_indices[train_size: train_size + valid_size]
+
+            data_dict = dict(
+                X_train=X_train[train_idx], y_train=y_train[train_idx],
+                X_valid=X_train[valid_idx], y_valid=y_train[valid_idx],
+                X_test=X_test, y_test=y_test,
+                num_features=num_features,                num_classes=num_classes
+            )
         with open(pkl_path, "wb") as fp:
             pickle.dump(data_dict, fp)
-        return data_dict
-    else:
-        data_train, data_test = data.iloc[:-test_size], data.iloc[-test_size:]
-
-        X_train, y_train = data_train.iloc[:, 1:].values, data_train.iloc[:, 0].values
-        X_test, y_test = data_test.iloc[:, 1:].values, data_test.iloc[:, 0].values
-
-        if all(sizes is None for sizes in (train_size, valid_size)):
-            train_idx_path = os.path.join(path, 'stratified_train_idx.txt')
-            valid_idx_path = os.path.join(path, 'stratified_valid_idx.txt')
-            if not all(os.path.exists(fname) for fname in (train_idx_path, valid_idx_path)):
-                download("https://www.dropbox.com/s/i2uekmwqnp9r4ix/stratified_train_idx.txt?dl=1", train_idx_path)
-                download("https://www.dropbox.com/s/wkbk74orytmb2su/stratified_valid_idx.txt?dl=1", valid_idx_path)
-            train_idx = pd.read_csv(train_idx_path, header=None)[0].values
-            valid_idx = pd.read_csv(valid_idx_path, header=None)[0].values
-        else:
-            assert train_size, "please provide either train_size or none of sizes"
-            if valid_size is None:
-                valid_size = len(X_train) - train_size
-                assert valid_size > 0
-            if train_size + valid_size > len(X_train):
-                warnings.warn('train_size + valid_size = {} exceeds dataset size: {}.'.format(
-                    train_size + valid_size, len(X_train)), Warning)
-
-            shuffled_indices = np.random.permutation(np.arange(len(X_train)))
-            train_idx = shuffled_indices[:train_size]
-            valid_idx = shuffled_indices[train_size: train_size + valid_size]
-
-        return dict(
-            X_train=X_train[train_idx], y_train=y_train[train_idx],
-            X_valid=X_train[valid_idx], y_valid=y_train[valid_idx],
-            X_test=X_test, y_test=y_test,
-        )
+    #print(f"====== fetch_HIGGS:\tX={data_dict['X'].shape}")
+    print(f"====== fetch_HIGGS:\tX_train={data_dict['X_train'].shape}\tX_valid={data_dict['X_valid'].shape}"\
+        f"\tX_test={data_dict['X_test'].shape}")
+    return data_dict      
 
 
 def fetch_MICROSOFT(path):

@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-02-24 14:53:36
+@LastEditTime: 2020-02-25 12:20:51
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
@@ -31,10 +31,10 @@ class QForest_config:
         self.plot_train = False
         self.plot_attention = True
         self.data_normal = ""       #"NN"     "Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
-        self.leaf_output = "distri2CNN"       #"distri2fc" "distri2CNN"  "Y" "leaf_distri"
+        self.leaf_output = "leaf_distri"       #"distri2fc" "distri2CNN"  "Y" "leaf_distri"
         self.reg_L1 = 0        #-4,-5,-6,-7,-8  -7略有提高
         self.reg_Gate = 0 
-        self.path_way="TREE_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
+        self.path_way="OBLIVIOUS_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
         
         
         self.back_bone = 'resnet18_x'
@@ -48,7 +48,7 @@ class QForest_config:
             # depth, batch_size, nTree = 7, 256, 512             #区别不大，而且有显存泄漏
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 256, 3, 1
             if self.leaf_output == "distri2CNN":  
-                self.depth = 5;     self.batch_size=256;       self.data_normal = ""
+                self.depth = 4;     self.batch_size=256;       self.data_normal = ""
                 self.nLayers=1;     self.response_dim = 3;      
                 self.T_w = 16;      self.T_h = 16;              self.nTree = self.T_w*self.T_h; 
                 self.lr_base = self.lr_base/2
@@ -80,11 +80,20 @@ class QForest_config:
         elif data_set=="CLICK":
             self.feat_info = None
             self.response_dim = data.nClasses
-            self.depth, self.batch_size, self.nTree, self.nLayers = 4, 256, 1024, 1
+            self.depth, self.batch_size, self.nTree, self.nLayers = 5, 512, 256, 1
             if self.leaf_output == "distri2CNN":  
                 self.depth = 5;     self.batch_size=256;       self.data_normal = ""
                 self.nLayers=1;        
-                self.T_w = 32;      self.T_h = 32;              self.nTree = self.T_w*self.T_h; 
+                self.T_w = 16;      self.T_h = 16;              self.nTree = self.T_w*self.T_h; 
+                self.lr_base = self.lr_base/2
+        elif data_set=="HIGGS":
+            self.feat_info = None
+            self.response_dim = data.nClasses
+            self.depth, self.batch_size, self.nTree, self.nLayers = 5, 1024, 256, 1
+            if self.leaf_output == "distri2CNN":  
+                self.depth = 5;     self.batch_size=512;       self.data_normal = ""
+                self.nLayers=1;        
+                self.T_w = 16;      self.T_h = 16;              self.nTree = self.T_w*self.T_h; 
                 self.lr_base = self.lr_base/2
         
         if self.data_normal == "NN":

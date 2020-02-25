@@ -26,10 +26,10 @@ from qhoptim.pyt import QHAdam
 data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
 #dataset = "YAHOO"
-dataset = "YEAR"
-#dataset = "CLICK"
-torch.cuda.set_device(0)
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+#dataset = "YEAR"
+dataset = "CLICK"
+#dataset = "HIGGS"
+
 
 def InitExperiment(config,fold_n):
     config.experiment = f'{config.data_set}_{config.model_info()}_{fold_n}'   #'year_node_shallow'
@@ -129,7 +129,6 @@ def VisualAfterEpoch(epoch,visual,config,mse):
 
 
 def NODE_test(data,fold_n,config,visual=None,feat_info=None):
-    config.device = device
     YY_train,YY_valid,YY_test = data.y_train, data.y_valid, data.y_test
 
     data.Y_mean,data.Y_std = YY_train.mean(), YY_train.std()
@@ -139,12 +138,12 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     #config.tree_module = node_lib.ODST
     config.tree_module = quantum_forest.DeTree
     Learners,last_train_prediction=[],0
-    qForest = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info,visual=visual).to(device)   
+    qForest = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info,visual=visual).to(config.device)   
     Learners.append(qForest)    
 
     if False:       # trigger data-aware init,作用不明显
         with torch.no_grad():
-            res = qForest(torch.as_tensor(data.X_train[:1000], device=device))
+            res = qForest(torch.as_tensor(data.X_train[:1000], device=config.device))
     #if torch.cuda.device_count() > 1:        model = nn.DataParallel(model)
 
     #weight_decay的值需要反复适配       如取1.0e-6 还可以  0.61142-0.58948
@@ -180,7 +179,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     wLearner.AfterEpoch(isBetter=True, epoch=0)
     epoch,t0=0,time.time()
     for batch in node_lib.iterate_minibatches(data.X_train, YY_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
-        metrics = trainer.train_on_batch(*batch, device=device)
+        metrics = trainer.train_on_batch(*batch, device=config.device)
         loss_history.append(metrics['loss'])
         if trainer.step%10==0:
             symbol = "^" if config.cascade_LR else ""
@@ -207,7 +206,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                 mse_train = dict_info["mse"]                
                 YY_train = YY_train-train_pred
                 mean,std = YY_train.mean(), YY_train.std()
-                qForest = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info,visual=visual).to(device)   
+                qForest = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info,visual=visual).to(config.device)   
                 #Learners.append(qForest)
                 wLearner=qForest#Learners[-1]
                 print(f"NODE_test::Expand@{epoch} eval_train={mse_train:.2f} YY_train={np.linalg.norm(YY_train)}")
@@ -226,7 +225,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             if torch.cuda.is_available():  torch.cuda.empty_cache()
             trainer.load_checkpoint(tag='best_mse')
             t0=time.time()
-            dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=device, batch_size=config.eval_batch_size)
+            dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=config.device, batch_size=config.eval_batch_size)
             if config.cascade_LR:
                 prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
             #prediction = prediction*data.accu_scale+data.Y_mu_0
@@ -265,23 +264,30 @@ if __name__ == "__main__":
     #data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True)
     config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"
     random_state = 42
-    quantum_forest.OnInitInstance(random_state)
+    config.device = quantum_forest.OnInitInstance(random_state)
 
     config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"    
-    if dataset=="YAHOO" or dataset=="MICROSOFT" or dataset=="CLICK":
+    if dataset=="YAHOO" or dataset=="MICROSOFT" or dataset=="CLICK" or dataset=="HIGGS":
         config,visual = InitExperiment(config, 0)
         data.onFold(0,config,pkl_path=f"{data_root}{dataset}/FOLD_Quantile_.pickle")
         Fold_learning(0,data, config,visual)
     else:
-        nFold = 5
+        nFold = 5 if dataset != "HIGGS" else 20
         folds = KFold(n_splits=nFold, shuffle=True)
         index_sets=[]
         for fold_n, (train_index, valid_index) in enumerate(folds.split(data.X)):
             index_sets.append(valid_index)
         for fold_n in range(len(index_sets)):
             config, visual = InitExperiment(config, fold_n)
-            valid_index=index_sets[(fold_n+1)%nFold]
-            train_index=np.concatenate([index_sets[(fold_n+2)%nFold],index_sets[(fold_n+3)%nFold],index_sets[(fold_n+4)%nFold]])
+            train_list=[]
+            for i in range(nFold):
+                if i==fold_n:           #test
+                    continue
+                elif i==fold_n+1:       #valid                
+                    valid_index=index_sets[i]
+                else:
+                    train_list.append(index_sets[i])
+            train_index=np.concatenate(train_list)
             print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
 
             data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{data_root}{dataset}/FOLD_{fold_n}.pickle")

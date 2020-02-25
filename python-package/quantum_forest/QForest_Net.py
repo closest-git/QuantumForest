@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-02-24 13:25:38
+@LastEditTime: 2020-02-24 15:47:56
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -85,7 +85,11 @@ class Simple_VGG(nn.Module):
         }
         self.type = 'VGG_1'
         self.features = self._make_layers(self.cfg[self.type],in_channel=in_channel)
+        self.out_channel = out_channel
         #self.init_weights()    #引起振荡，莫名其妙
+        if False and self.out_channel>1:
+            self.linear = nn.Linear(4096, self.out_channel)
+            nn.init.kaiming_normal_(self.linear.weight)
         print(self)
     
     def forward(self, x):
@@ -93,8 +97,13 @@ class Simple_VGG(nn.Module):
         out = out.view(out.size(0), -1)
         if hasattr(self,"linear"):
             out = self.linear(out)
-        else:
-            out = out.mean(dim=-1)
+        else:            
+            if self.out_channel>1:   #"classification":
+                out = out.view(out.size(0), -1,self.out_channel)
+                assert len(out.shape)==3
+                out = out.mean(dim=-2)
+            else:
+                out = out.mean(dim=-1)
         return out
 
             
@@ -102,13 +111,17 @@ class QForest_Net(nn.Module):
     def pick_cnn(self):
         self.back_bone = 'resnet18_x'
         in_channel = self.config.response_dim
+        if self.config.problem()=="classification":
+            out_channel = self.config.response_dim 
+        else:
+            out_channel = 1
         # model_name='dpn92'
         # model_name='senet154'
         # model_name='densenet121'
         # model_name='alexnet'
         # model_name='senet154'
         #cnn_model = ResNet_custom([2,2,2,2],in_channel=1,out_channel=1)          ;#models.resnet18(pretrained=True)
-        cnn_model = Simple_VGG([2,2,2,2],in_channel=in_channel,out_channel=1) 
+        cnn_model = Simple_VGG([2,2,2,2],in_channel=in_channel,out_channel=out_channel) 
         return cnn_model
 
     def __init__(self, in_features, config,feat_info=None,visual=None):

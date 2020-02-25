@@ -240,8 +240,15 @@ class DeTree(nn.Module):
                 nn.init.kaiming_normal_ (layer.weight.data)
         elif self.config.leaf_output == "distri2CNN":
             self.response = nn.Parameter(torch.zeros([num_trees, self.response_dim, 2 ** depth]), requires_grad=True)
-            #initialize_response_(self.response,mean=self.response_mean,std=self.response_std)
-            initialize_response_(self.response)
+            if False:   #没啥用
+                response = self.response.data
+                for i in range(num_trees):
+                    for j in range(2 ** depth):
+                        mu,std=random.uniform(-2, 2),random.uniform(0, 2)
+                        nn.init.normal_(response[i,:,j],mu,std)                   
+                #initialize_response_(self.response,mean=self.response_mean,std=self.response_std)
+            else:
+                initialize_response_(self.response)
             pass
         else:
             self.response = None

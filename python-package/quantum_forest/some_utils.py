@@ -80,7 +80,9 @@ def cpuStats():
     memoryUse = py.memory_info()[0] / 2. ** 30  # memory use in GB...I think
     print('memory use in python(GB):', memoryUse)
 
-def pytorch_env( ):
+def pytorch_env( device=0 ):
+    #torch.cuda.set_device(0)
+    #device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print('__Python VERSION:', sys.version)
     print('__pyTorch VERSION:', torch.__version__)
     print('__CUDA VERSION')
@@ -92,8 +94,11 @@ def pytorch_env( ):
     print('__Devices')
     # call(["nvidia-smi", "--format=csv", "--query-gpu=index,name,driver_version,memory.total,memory.used,memory.free"])
     print('Active CUDA Device: GPU', torch.cuda.current_device())
-
-    print ('Available devices ', torch.cuda.device_count())
+    nDevive = torch.cuda.device_count()
+    print ('Available devices ',nDevive )
+    for i in range(nDevive):
+        name = torch.cuda.get_device_name()
+        print( f"****** {i}-{name} \tcapabilit={torch.cuda.get_device_capability(i)} :\n\t{torch.cuda.get_device_properties(i)}") 
     print ('Current cuda device ', torch.cuda.current_device())
     use_cuda = torch.cuda.is_available()
     print("USE CUDA=" + str(use_cuda))
