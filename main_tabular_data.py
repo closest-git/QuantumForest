@@ -27,8 +27,8 @@ data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
 #dataset = "YAHOO"
 #dataset = "YEAR"
-dataset = "CLICK"
-#dataset = "HIGGS"
+#dataset = "CLICK"
+dataset = "HIGGS"
 
 
 def InitExperiment(config,fold_n):
@@ -45,25 +45,25 @@ def InitExperiment(config,fold_n):
         shutil.rmtree(log_path)
     return config,visual
 
-def plot_importance(model,nMax=30):
-    plt.figure(figsize=(12, 6))
-    lgb.plot_importance(model, max_num_features=nMax)
-    plt.title("Featurertances")
-    plt.show()
 
-def GBDT_test(data,fold_n):
+
+def GBDT_test(data,fold_n,num_rounds = 100000,bf=1,ff=1):
     model_type = "mort" if isMORT else "lgb"
     nFeatures = data.X_train.shape[1]
-    some_rows = 10000
     early_stop = 100;    verbose_eval = 20
-    metric = 'l2'       #"rmse"
-    num_rounds = 100000; nLeaf = 32
-    lr = 0.1;    bf = 0.51;    ff = 0.1
+    
+    #lr = 0.01;   
+    bf = bf;    ff = ff
 
-    params = {"objective": "regression", "metric": metric,
-              "num_leaves": nLeaf, "learning_rate": lr, 'n_estimators': num_rounds,
-              "bagging_freq": 1, "bagging_fraction": bf, "feature_fraction": ff, 'min_data_in_leaf': 10000,
-              'verbose_eval': verbose_eval, "early_stopping_rounds": early_stop, 'n_jobs': -1, "elitism": 0
+    if data.problem()=="classification":
+        metric = 'auc'       #"rmse"
+        params = {"objective": "binary", "metric": metric,'n_estimators': num_rounds,
+        "bagging_fraction": bf, "feature_fraction": ff,'verbose_eval': verbose_eval, "early_stopping_rounds": early_stop, 'n_jobs': -1, 
+              }
+    else:
+        metric = 'l2'       #"rmse"
+        params = {"objective": "regression", "metric": metric,'n_estimators': num_rounds,
+              "bagging_fraction": bf, "feature_fraction": ff, 'verbose_eval': verbose_eval, "early_stopping_rounds": early_stop, 'n_jobs': -1,
               }
     print(f"====== GBDT_test\tparams={params}")
     X_train, y_train = data.X_train, data.y_train
@@ -82,23 +82,51 @@ def GBDT_test(data,fold_n):
         #y_pred = model.predict(X_test)
 
     if model_type == 'lgb':
-        #params['verbose'] = 0   #667
-        model = lgb.LGBMRegressor(**params)
-        model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=1000)
+        if data.problem()=="classification":
+            model = lgb.LGBMClassifier(**params)
+        else:
+            model = lgb.LGBMRegressor(**params)
+        model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=min(num_rounds//10,1000))
         pred_val = model.predict(data.X_test)
-        plot_importance(model)
+        #plot_importance(model)
+        lgb.plot_importance(model, max_num_features=32)
+        plt.title("Featurertances")
+        plt.savefig(f"./results/{dataset}_feat_importance_.jpg")
+        plt.show()
+        plt.close()
+
         fold_importance = pd.DataFrame()
         fold_importance["importance"] = model.feature_importances_
         fold_importance["feature"] = [i for i in range(nFeatures)]
         fold_importance["fold"] = fold_n
-        fold_importance.to_pickle(f"./results/{dataset}_feat_{fold_n}.pickle")
+        #fold_importance.to_pickle(f"./results/{dataset}_feat_{fold_n}.pickle")
         print('best_score', model.best_score_)
         acc_train,acc_=model.best_score_['training'][metric], model.best_score_['valid_1'][metric]
     if data.X_test is not None:
         pred_val = model.predict(data.X_test)
         acc_ = ((data.y_test - pred_val) ** 2).mean()
         print(f'====== Best step: test={data.X_test.shape} ACCU@Test={acc_:.5f}')
-    return acc_,acc_train
+    return acc_,fold_importance
+
+def get_feature_info(data,fold_n):
+    pkl_path = f"./results/{dataset}_feat_info_.pickle"
+    nSamp,nFeat = data.X_train.shape[0],data.X_train.shape[1]
+    if os.path.isfile(pkl_path):
+        feat_info = pd.read_pickle(pkl_path)
+    else:
+        #fast GBDT to get feature importance
+        nMostSamp,nMostFeat=100000.0,100.0
+        bf = 1.0 if nSamp<=nMostSamp else nMostSamp/nSamp
+        ff = 1.0 if nFeat<=nMostFeat else nMostFeat/nFeat
+        accu,feat_info = GBDT_test(data,fold_n,num_rounds=1000,bf = bf,ff = ff)
+        with open(pkl_path, "wb") as fp:
+            pickle.dump(feat_info, fp)
+
+    importance = torch.from_numpy(feat_info['importance'].values).float()
+    fmax, fmin = torch.max(importance), torch.min(importance)
+    weight = importance / fmax
+    feat_info = data.OnFeatInfo(feat_info,weight)
+    return feat_info
 
 def cascade_LR():   #意义不大
     if config.cascade_LR:
@@ -238,15 +266,12 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     return best_mse,mse
 
 
+
 def Fold_learning(fold_n,data,config,visual):
     t0 = time.time()
     if config.model=="QForest":
         if config.feat_info == "importance":
-            feat_info = pd.read_pickle(f"./results/{dataset}_feat_.pickle")
-            importance = torch.from_numpy(feat_info['importance'].values).float()
-            fmax, fmin = torch.max(importance), torch.min(importance)
-            weight = importance / fmax
-            feat_info = data.OnFeatInfo(feat_info,weight)
+            feat_info = get_feature_info(data,fold_n)            
         else:
             feat_info = None
         accu,_ = NODE_test(data,fold_n,config,visual,feat_info)

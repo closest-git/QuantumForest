@@ -78,9 +78,10 @@ class TabularDataset:
 
     def OnFeatInfo(self,feat_info,weight_1):
         assert weight_1 is not None
-        nFeat = weight_1.shape[0]
+        nFeat = weight_1.shape[0]        
+        fmax, fmin = torch.max(weight_1), torch.min(weight_1)
         picks = [i for i in range(nFeat) if weight_1[i] <0.9]     #非常奇怪，难以理解
-        picks = list(range(nFeat))
+        picks = list(range(nFeat))      #先用全部吧
         nPick = len(picks)
         if nPick<nFeat:
             feat_info = feat_info.iloc[picks, :]

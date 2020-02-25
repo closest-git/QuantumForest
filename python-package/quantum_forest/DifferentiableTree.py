@@ -28,7 +28,7 @@ class DeTree(nn.Module):
             weight = importance / fmax
             # weight[weight<1.0e-4] = 1.0e-4
             weight = weight * weight * weight
-            nShow=min(self.in_features/2,20)
+            nShow=min(self.in_features//2,20)
             print(f"====== feat weight={weight[0:nShow]}...{weight[self.in_features-nShow:self.in_features-1]} fmax={fmax}, fmin={fmin}")
 
         #only for self.no_attention and weight is None
