@@ -25,8 +25,8 @@ from qhoptim.pyt import QHAdam
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
-dataset = "YAHOO"
-#dataset = "YEAR"
+#dataset = "YAHOO"
+dataset = "YEAR"
 #dataset = "CLICK"
 #dataset = "HIGGS"
 
@@ -92,8 +92,8 @@ def GBDT_test(data,fold_n,num_rounds = 100000,bf=1,ff=1):
         lgb.plot_importance(model, max_num_features=32)
         plt.title("Featurertances")
         plt.savefig(f"./results/{dataset}_feat_importance_.jpg")
-        plt.show(block=False)
-        #plt.close()
+        #plt.show(block=False)
+        plt.close()
 
         fold_importance = pd.DataFrame()
         fold_importance["importance"] = model.feature_importances_
@@ -118,7 +118,7 @@ def get_feature_info(data,fold_n):
         nMostSamp,nMostFeat=100000.0,100.0
         bf = 1.0 if nSamp<=nMostSamp else nMostSamp/nSamp
         ff = 1.0 if nFeat<=nMostFeat else nMostFeat/nFeat
-        accu,feat_info = GBDT_test(data,fold_n,num_rounds=1000,bf = bf,ff = ff)
+        accu,feat_info = GBDT_test(data,fold_n,num_rounds=2000,bf = bf,ff = ff)
         with open(pkl_path, "wb") as fp:
             pickle.dump(feat_info, fp)
 

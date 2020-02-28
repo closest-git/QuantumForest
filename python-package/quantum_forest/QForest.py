@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-02-27 14:48:31
+@LastEditTime: 2020-02-28 14:24:45
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
@@ -33,7 +33,7 @@ class QForest_config:
         self.data_normal = ""       #"NN"     "Quantile"   "BN" (0.589-0.599) BN确实差很多，奇怪
         self.leaf_output = "leaf_distri"       #"distri2fc" "distri2CNN"  "Y" "leaf_distri"
         self.reg_L1 = 0        #-4,-5,-6,-7,-8  -7略有提高
-        self.reg_Gate = 0 
+        self.reg_Gate = 0
         self.path_way="TREE_map"   #"TREE_map",   "TREE_map",   "OBLIVIOUS_map","OBLIVIOUS_1hot"
         
         
@@ -43,6 +43,7 @@ class QForest_config:
         self.trainer = None;     self.cascade_LR = False;     self.average_training = False   #True不合适，难以和其它模块一起训练
 
         if data_set=="YEAR":
+            self.feat_info = None
             self.depth, self.batch_size, self.nTree = 5, 1024, 256  # 0.6355-0.6485(choice_reuse)
             self.depth, self.batch_size, self.nTree = 5, 256, 2048  # 0.619
             # depth, batch_size, nTree = 7, 256, 512             #区别不大，而且有显存泄漏

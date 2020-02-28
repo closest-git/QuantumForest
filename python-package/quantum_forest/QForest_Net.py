@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-02-24 15:47:56
+@LastEditTime: 2020-02-28 14:17:08
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -219,14 +219,16 @@ class QForest_Net(nn.Module):
         return var_dic
 
     def AfterEpoch(self, isBetter=False, epoch=0, accu=0):
-        #trainer.opt = Optimizer(filter(lambda p: p.requires_grad, self.model.parameters()), **optimizer_params)
-        return
-
         attentions=[]
-        for layer in self.layers:
-            #self.nAtt, self.nzAtt = self.nAtt+layer.nAtt, self.nzAtt+layer.nzAtt
-            layer.AfterEpoch(epoch)
-            for att,_ in layer.get_variables():
+        if False:            
+            for layer in self.layers:
+                #self.nAtt, self.nzAtt = self.nAtt+layer.nAtt, self.nzAtt+layer.nzAtt
+                layer.AfterEpoch(epoch)
+                for att,_ in layer.get_variables():
+                    attentions.append(att.data.detach().cpu().numpy())
+        else:
+            dict_val = self.get_variables({"attention":[]})
+            for att in dict_val["attention"]:
                 attentions.append(att.data.detach().cpu().numpy())
         attention = np.concatenate(attentions)  #.reshape(-1)
         self.nAtt = attention.size  # sparse attention

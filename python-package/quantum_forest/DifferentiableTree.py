@@ -6,7 +6,7 @@ import random
 import math
 import copy
 from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15
-#from entmax import sparsemax, entmax15, entmax_bisect
+#import entmax      #from entmax import sparsemax, entmax15, entmax_bisect
 from .some_utils import check_numpy
 from warnings import warn
 
@@ -75,9 +75,9 @@ class DeTree(nn.Module):
             attention = self.feat_attention
         #choice_weight = self.choice_function(attention, dim=0)    
         if self.attention_func.__name__=="entmax_bisect":  
-            choice_weight = self.attention_func(attention, self.entmax_alpha)    
+            choice_weight = self.attention_func(attention, self.entmax_alpha, dim=0)    
         else:    
-            choice_weight = self.attention_func(attention)    
+            choice_weight = self.attention_func(attention, dim=0)    
         #choice_weight = attention       #
 
         #c_max = torch.max(choice_weight)
@@ -177,8 +177,7 @@ class DeTree(nn.Module):
             return
 
 
-    def __init__(self, in_features, num_trees,config, flatten_output=True,
-                 choice_function=sparsemax, feat_info=None,
+    def __init__(self, in_features, num_trees,config, flatten_output=True,feat_info=None,
                  initialize_response_=nn.init.normal_, initialize_selection_logits_=nn.init.uniform_,
                  threshold_init_beta=1.0, threshold_init_cutoff=1.0,
                  ):
@@ -191,7 +190,6 @@ class DeTree(nn.Module):
         :param depth: number of splits in every tree
         :param flatten_output: if False, returns [..., num_trees, response_dim],
             by default returns [..., num_trees * response_dim]
-        :param choice_function: f(tensor, dim) -> R_simplex computes feature weights s.t. f(tensor, dim).sum(dim) == 1
         
         :param initialize_response_: in-place initializer for tree output tensor
         :param initialize_selection_logits_: in-place initializer for logits that select features for the tree
@@ -219,8 +217,11 @@ class DeTree(nn.Module):
         self.depth, self.num_trees, self.response_dim, self.flatten_output = \
             depth, num_trees, config.response_dim, config.flatten_output
         
-        self.entmax_alpha = nn.Parameter(torch.tensor(1.5, requires_grad=True))
-        self.attention_func = entmax15    #sparsemax, entmax15, entmax_bisect
+        if False and isAdptiveAlpha:      #可以试试，就是时间太长
+            self.entmax_alpha = nn.Parameter(torch.tensor(1.5, requires_grad=True))
+            self.attention_func = entmax.entmax_bisect    #sparsemax, entmax15, entmax_bisect
+        else:
+            self.attention_func = entmax15
         self.bin_func = "05_01"     #"05_01"        "entmoid15" "softmax"
         self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
