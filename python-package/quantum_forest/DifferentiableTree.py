@@ -6,6 +6,7 @@ import random
 import math
 import copy
 from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15
+#from entmax import sparsemax, entmax15, entmax_bisect
 from .some_utils import check_numpy
 from warnings import warn
 
@@ -72,7 +73,11 @@ class DeTree(nn.Module):
             attention = self.feat_attention[self.config.trainer.feat_cands,:]
         else:
             attention = self.feat_attention
-        choice_weight = self.choice_function(attention, dim=0)        #choice_function=entmax15
+        #choice_weight = self.choice_function(attention, dim=0)    
+        if self.attention_func.__name__=="entmax_bisect":  
+            choice_weight = self.attention_func(attention, self.entmax_alpha)    
+        else:    
+            choice_weight = self.attention_func(attention)    
         #choice_weight = attention       #
 
         #c_max = torch.max(choice_weight)
@@ -173,12 +178,12 @@ class DeTree(nn.Module):
 
 
     def __init__(self, in_features, num_trees,config, flatten_output=True,
-                 choice_function=sparsemax, bin_function=sparsemoid,feat_info=None,
+                 choice_function=sparsemax, feat_info=None,
                  initialize_response_=nn.init.normal_, initialize_selection_logits_=nn.init.uniform_,
                  threshold_init_beta=1.0, threshold_init_cutoff=1.0,
                  ):
         """
-        Differentiable Sparsemax Trees. 
+        Differentiable Trees. 
         One can drop (sic!) this module anywhere instead of nn.Linear
         :param in_features: number of features in the input tensor
         :param num_trees: number of trees in this layer
@@ -187,8 +192,7 @@ class DeTree(nn.Module):
         :param flatten_output: if False, returns [..., num_trees, response_dim],
             by default returns [..., num_trees * response_dim]
         :param choice_function: f(tensor, dim) -> R_simplex computes feature weights s.t. f(tensor, dim).sum(dim) == 1
-        :param bin_function: f(tensor) -> R[0, 1], computes tree leaf weights
-
+        
         :param initialize_response_: in-place initializer for tree output tensor
         :param initialize_selection_logits_: in-place initializer for logits that select features for the tree
         both thresholds and scales are initialized with data-aware init (or .load_state_dict)
@@ -215,8 +219,8 @@ class DeTree(nn.Module):
         self.depth, self.num_trees, self.response_dim, self.flatten_output = \
             depth, num_trees, config.response_dim, config.flatten_output
         
-        #self.choice_function, self.bin_function = choice_function, bin_function
-        self.choice_function = entmax15
+        self.entmax_alpha = nn.Parameter(torch.tensor(1.5, requires_grad=True))
+        self.attention_func = entmax15    #sparsemax, entmax15, entmax_bisect
         self.bin_func = "05_01"     #"05_01"        "entmoid15" "softmax"
         self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
@@ -383,10 +387,6 @@ class DeTree(nn.Module):
                 assert feature_values.shape[0]==input.shape[0]
             else:
                 feature_values = self.get_attention_value(input)
-            #feature_selectors = self.choice_function(self.feat_attention, dim=0)
-            # ^--[in_features, num_trees, depth]
-            #feature_values = torch.einsum('bi,ind->bnd', input, feature_selectors)
-            # ^--[batch_size, num_trees, depth]
 
             # initialize thresholds: sample random percentiles of data
             percentiles_q = 100 * np.random.beta(self.threshold_init_beta, self.threshold_init_beta,
@@ -406,10 +406,10 @@ class DeTree(nn.Module):
 
     def __repr__(self):
         main_str = "{}(F={},f={},B={}, T={},D={}, response_dim={}, " \
-               "init_attention={},flatten_output={},bin_func={},init_response=[{},{:.3f},{:.3f}])".format(
+               "attention_func={}=>{},flatten_output={},bin_func={},init_response=[{},{:.3f},{:.3f}])".format(
             self.__class__.__name__, 0 if self.no_attention else self.feat_attention.shape[0],
             self.nFeature,self.config.batch_size,self.num_trees, self.depth, self.response_dim, 
-            self.init_attention_func.__name__,self.flatten_output,
+            self.init_attention_func.__name__,self.attention_func.__name__,self.flatten_output,
             self.bin_func,
             self.init_responce_func.__name__,self.response_mean,self.response_std
         )

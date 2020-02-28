@@ -25,10 +25,10 @@ from qhoptim.pyt import QHAdam
 #You should set the path of each dataset!!!
 data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
-#dataset = "YAHOO"
+dataset = "YAHOO"
 #dataset = "YEAR"
 #dataset = "CLICK"
-dataset = "HIGGS"
+#dataset = "HIGGS"
 
 
 def InitExperiment(config,fold_n):
@@ -92,8 +92,8 @@ def GBDT_test(data,fold_n,num_rounds = 100000,bf=1,ff=1):
         lgb.plot_importance(model, max_num_features=32)
         plt.title("Featurertances")
         plt.savefig(f"./results/{dataset}_feat_importance_.jpg")
-        plt.show()
-        plt.close()
+        plt.show(block=False)
+        #plt.close()
 
         fold_importance = pd.DataFrame()
         fold_importance["importance"] = model.feature_importances_

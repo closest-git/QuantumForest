@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-02-25 16:14:33
+@LastEditTime: 2020-02-27 14:48:31
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
@@ -56,7 +56,7 @@ class QForest_config:
             #反复测试 self.response_dim=5要优于3
             self.depth, self.batch_size, self.nTree, self.response_dim = 5, 256, 2048, 3  # 0.5913->0.5892(maxout)
             self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 2048, 3, 1  #
-            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 256, 3, 1  #
+            self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 4, 256, 1024, 3, 1  #
             #nLayers 4-0.58854  3-0.58982   2-0.58769
             #response_dim=  5-0.5910;  3-0.5913
             if self.leaf_output == "distri2fc":  #难以突破0.6啊 
