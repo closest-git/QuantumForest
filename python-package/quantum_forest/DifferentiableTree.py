@@ -301,6 +301,11 @@ class DeTree(nn.Module):
         if False:  #relative distance has no effect
             threshold_logits = threshold_logits/(torch.abs(self.feature_thresholds)+1.0e-4)
         threshold_logits = torch.stack([-threshold_logits, threshold_logits], dim=-1)
+        if self.config.support_vector:
+            threshold_logits = threshold_logits.clamp_(-1, 1)
+            self.gate_values = threshold_logits
+        
+        
         # ^--[batch_size, num_trees, depth, 2]
 
         #RESPONSE_WEIGHTS 1)choice at each level of OTree 2) 3)c1*c2*c3*c4*c5 for each [leaf,tree,sample]
@@ -315,7 +320,11 @@ class DeTree(nn.Module):
             gate_values = (0.5 * threshold_logits + 0.5)
         elif self.bin_func == "":                        #后继乏力(0.630)
             gate_values = threshold_logits
-        self.gate_values = gate_values
+        if self.config.support_vector:
+            pass
+        else:
+            self.gate_values = gate_values
+
         # ^--[batch_size, num_trees, depth, 2], approximately binary
         if self.path_map is None:   #too much memory
             path_ = torch.einsum('btds,dcs->btdc', gate_values, self.bin_codes_1hot)

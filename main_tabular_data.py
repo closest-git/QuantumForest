@@ -26,8 +26,8 @@ from qhoptim.pyt import QHAdam
 data_root = "F:/Datasets/"
 #dataset = "MICROSOFT"
 #dataset = "YAHOO"
-dataset = "YEAR"
-#dataset = "CLICK"
+#dataset = "YEAR"
+dataset = "CLICK"
 #dataset = "HIGGS"
 
 
@@ -212,7 +212,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         if trainer.step%10==0:
             symbol = "^" if config.cascade_LR else ""
             print(f"\r============ {trainer.step}{symbol}\t{metrics['loss']:.5f}\tL1=[{wLearner.reg_L1:.4g}*{config.reg_L1}]"
-            f"\tL2=[{wLearner.reg_L2:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
+            f"\tL2=[{wLearner.L_gate:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
             ,end="")
         if trainer.step % report_frequency == 0:
             epoch=epoch+1

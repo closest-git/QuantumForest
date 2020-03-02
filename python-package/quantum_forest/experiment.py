@@ -43,7 +43,7 @@ def process_in_chunks(function, *args, batch_size, out=None, **kwargs):
     """
     total_size = args[0].shape[0]
     first_output = function(*[x[0: batch_size] for x in args])
-    reg_Gate = function.reg_L2.item()*batch_size 
+    reg_Gate = function.L_gate.item()*batch_size 
     output_shape = (total_size,) + tuple(first_output.shape[1:])
     if out is None:
         out = torch.zeros(*output_shape, dtype=first_output.dtype, device=first_output.device,
@@ -53,7 +53,7 @@ def process_in_chunks(function, *args, batch_size, out=None, **kwargs):
     for i in range(batch_size, total_size, batch_size):
         batch_ix = slice(i, min(i + batch_size, total_size))
         out[batch_ix] = function(*[x[batch_ix] for x in args])
-        reg_Gate = reg_Gate+function.reg_L2.item()*(batch_ix.stop-batch_ix.start)
+        reg_Gate = reg_Gate+function.L_gate.item()*(batch_ix.stop-batch_ix.start)
     dict_info={"reg_Gate":reg_Gate/total_size,"total_size":total_size}
     return out,dict_info
 
@@ -215,8 +215,8 @@ class Experiment(nn.Module):
             loss = F.mse_loss(y_output, y_batch)
         loss = loss.mean()
         #loss = self.model.reg_L1*self.model.config.reg_L1
-        loss = loss+self.model.reg_L1*self.model.config.reg_L1+self.model.reg_L2*self.model.config.reg_Gate 
-        #loss = self.model.reg_L2*self.model.config.reg_Gate
+        loss = loss+self.model.reg_L1*self.model.config.reg_L1+(1-self.model.L_gate)*self.model.config.reg_Gate 
+        #loss = self.model.L_gate*self.model.config.reg_Gate
 
         #print(f"\t{torch.min(loss)}:{torch.max(loss)}")
         loss.backward()     #retain_graph=self.isFirstBackward

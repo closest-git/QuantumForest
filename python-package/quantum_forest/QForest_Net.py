@@ -132,7 +132,7 @@ class QForest_Net(nn.Module):
         self.config = config
         #self.gates_cp = nn.Parameter(torch.zeros([1]), requires_grad=True)
         self.reg_L1 = 0.
-        self.reg_L2 = 0.
+        self.L_gate = 0.
         if config.leaf_output == "distri2CNN": 
             self.cnn_model = self.pick_cnn()    
         
@@ -206,8 +206,8 @@ class QForest_Net(nn.Module):
         for gate_values in dict_val["gate_values"]:
             a = torch.sum(torch.pow(gate_values, 2))/gate_values.numel()
             l2 = l2+a
-        self.reg_L2 = l2     
-        #if self.config.reg_Gate>0:            reg = reg+self.reg_L2*self.config.reg_Gate 
+        self.L_gate = l2     
+        #if self.config.reg_Gate>0:            reg = reg+self.L_gate*self.config.reg_Gate 
         #return reg
         return reg
     
