@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-02-28 14:17:08
+@LastEditTime: 2020-03-07 17:24:56
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -204,7 +204,11 @@ class QForest_Net(nn.Module):
         self.reg_L1 = l1
         reg = self.reg_L1*self.config.reg_L1
         for gate_values in dict_val["gate_values"]:
-            a = torch.sum(torch.pow(gate_values, 2))/gate_values.numel()
+            if self.config.support_vector=="0": 
+                a = torch.sum(torch.pow(gate_values, 2))/gate_values.numel()
+            else:
+                gmin,gmax = torch.min(gate_values).item(),torch.max(gate_values).item()
+                a = torch.sum(gate_values)/gate_values.numel()
             l2 = l2+a
         self.L_gate = l2     
         #if self.config.reg_Gate>0:            reg = reg+self.L_gate*self.config.reg_Gate 
@@ -233,7 +237,7 @@ class QForest_Net(nn.Module):
         attention = np.concatenate(attentions)  #.reshape(-1)
         self.nAtt = attention.size  # sparse attention
         self.nzAtt = self.nAtt - np.count_nonzero(attention)
-        print(f"\t[nzAttention={self.nAtt} zeros={self.nzAtt},{self.nzAtt * 100.0 / self.nAtt:.4f}%]")
+        #print(f"\t[nzAttention={self.nAtt} zeros={self.nzAtt},{self.nzAtt * 100.0 / self.nAtt:.4f}%]")
         #plt.hist(attention)    #histo不明显
         if self.config.plot_attention:
             nFeat,nCol = attention.shape[0],attention.shape[1]

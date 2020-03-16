@@ -307,3 +307,11 @@ ModelManifest.xml
 *.pickle
 *.gz
 
+dump/qq_0_after.png
+dump/qq_0_before.png
+dump/qq_1_after.png
+dump/qq_1_before.png
+dump/qq_2_after.png
+dump/qq_2_before.png
+dump/qq_3_after.png
+dump/qq_3_before.png

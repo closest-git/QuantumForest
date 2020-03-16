@@ -103,7 +103,7 @@ class Experiment(nn.Module):
             self.select_some_feats()
         else:
             self.nFeat4Train = self.data.nFeature
-        config.trainer = self
+        
     
     def SetLearner(self,wLearner):
         self.model = wLearner        
@@ -184,6 +184,21 @@ class Experiment(nn.Module):
         if isDump:
             print(f"====== select_some_feats len={self.nFeat4Train} feat=[{self.feat_cands[0:5]}...{self.feat_cands[-5:-1]}]")
 
+    def loss_on_batch(self,y_output,y_batch):
+        #loss = self.loss_function(y_output, y_batch).mean() 
+        if self.data.problem()=="classification":
+            #assert list(y_output.shape)==[y_batch.shape,self.data.nClasses]
+            loss = F.cross_entropy(y_output,y_batch.long())
+        else:
+            assert y_output.shape==y_batch.shape
+            loss = F.mse_loss(y_output, y_batch)
+        loss = loss.mean()
+        
+        #loss = self.model.reg_L1*self.model.config.reg_L1
+        loss = loss+self.model.reg_L1*self.model.config.reg_L1+self.model.L_gate*self.model.config.reg_Gate 
+        #print(f"\t{torch.min(loss)}:{torch.max(loss)}")
+        return loss
+
     def train_on_batch(self, *batch, device):
         #with torch.autograd.set_detect_anomaly(True):
         x_batch, y_batch = batch
@@ -198,31 +213,28 @@ class Experiment(nn.Module):
         else:
             x_batch = torch.as_tensor(x_batch, device=device)
         y_batch = torch.as_tensor(y_batch, device=device)
-        self.model.config.y_batch = y_batch
+        self.y_batch = y_batch
         self.model.train()
         self.opt.zero_grad()
         y_output=self.model(x_batch)
-        #loss = self.loss_function(y_output, y_batch).mean()         #self.model(x_batch)
-        
-        #if self.model.config.reg_Gate!=0 and self.step%3==1:            
-        #    loss = self.model.gates_cp*self.model.config.reg_Gate
-        
-        if self.data.problem()=="classification":
-            #assert list(y_output.shape)==[y_batch.shape,self.data.nClasses]
-            loss = F.cross_entropy(y_output,y_batch.long())
-        else:
-            assert y_output.shape==y_batch.shape
-            loss = F.mse_loss(y_output, y_batch)
-        loss = loss.mean()
-        #loss = self.model.reg_L1*self.model.config.reg_L1
-        loss = loss+self.model.reg_L1*self.model.config.reg_L1+(1-self.model.L_gate)*self.model.config.reg_Gate 
-        #loss = self.model.L_gate*self.model.config.reg_Gate
 
-        #print(f"\t{torch.min(loss)}:{torch.max(loss)}")
-        loss.backward()     #retain_graph=self.isFirstBackward
+        loss = self.loss_on_batch(y_output,y_batch)
+        if False:
+            if self.data.problem()=="classification":
+                #assert list(y_output.shape)==[y_batch.shape,self.data.nClasses]
+                loss = F.cross_entropy(y_output,y_batch.long())
+            else:
+                assert y_output.shape==y_batch.shape
+                loss = F.mse_loss(y_output, y_batch)
+            loss = loss.mean()
+            #loss = self.model.reg_L1*self.model.config.reg_L1
+            loss = loss+self.model.reg_L1*self.model.config.reg_L1+self.model.L_gate*self.model.config.reg_Gate 
+        
+        loss.backward()     #retain_graph=self.isFirstBackward        
         self.isFirstBackward = False
         self.opt.step()
         self.step += 1
+        self.y_batch = None
         self.writer.add_scalar('train loss', loss.item(), self.step)
         self.metrics = {'loss': loss.item()}
         del loss       
@@ -279,6 +291,7 @@ class Experiment(nn.Module):
     def AfterEpoch(self,epoch,XX_,YY_,best_mse,isTest=False):
         t0=time.time()
         config = self.model.config
+        self.y_batch = None
         if isTest:
             self.load_checkpoint(tag='best_mse')
         elif config.average_training: #有意思，最终可以提高Val MSE
@@ -292,7 +305,8 @@ class Experiment(nn.Module):
         else:
             dict_info,prediction = self.evaluate_mse(XX_,YY_, device=config.device, batch_size=config.eval_batch_size)
             prediction = self.data.Y_trans(prediction)
-            mse = ((YY_ - prediction) ** 2).mean()        
+            lenY = 1#((YY_) ** 2).mean()
+            mse = ((YY_ - prediction) ** 2).mean()/lenY    
         
         if config.cascade_LR:
             prediction=LinearRgressor.AfterPredict(XX_,prediction)   

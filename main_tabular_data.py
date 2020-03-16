@@ -199,6 +199,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         verbose=True,      #True
         n_last_checkpoints=5
     )   
+    config.trainer = trainer
     
     trainer.SetLearner(wLearner)
     print(f"======  trainer.learner={trainer.model}\ntrainer.opt={trainer.opt}"\
@@ -287,6 +288,7 @@ def Fold_learning(fold_n,data,config,visual):
 if __name__ == "__main__":
     data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
     #data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True)
+    
     config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)

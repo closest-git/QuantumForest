@@ -12,9 +12,10 @@ import pickle
 import time
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_svmlight_file
-from sklearn.preprocessing import QuantileTransformer
+from sklearn.preprocessing import QuantileTransformer,PowerTransformer
 from category_encoders import LeaveOneOutEncoder
 import matplotlib.pyplot as plt
+from .Gaussianizor import Gaussianize
 
 def download(url, filename, delete_if_interrupted=True, chunk_size=4096):
     """ saves file from url to filename with a fancy progressbar """
@@ -59,6 +60,27 @@ class TabularDataset:
                     continue
                 listX[i] = X_[:,keep]
         return listX
+
+    def gaussian_trans_(self,random_state, X_samp, listX, distri='normal', noise=0):
+        if False:
+            #x = np.hstack([np.random.standard_cauchy(size=(1000, 2)), np.random.normal(size=(1000, 2))])
+            trans = Gaussianize(tol = 1e-2,max_iter = 10)
+            trans.fit(X_samp)  # Learn the parameters for the transformation
+            for i,X_ in enumerate(listX):
+                if X_ is None:
+                    continue
+                y = trans.transform(X_)  # Transform x to y, where y should be normal
+                listX[i] = trans.inverse_transform(y).astype(np.float32)  # Inverting this transform should recover the data
+            #assert np.allclose(x_prime, x)
+            #trans.qqplot(x,output_dir="E:/QuantumForest/dump/")  # Plot qq plots for each variable, before and after. 
+            #print()
+        else:
+            power = PowerTransformer(method='yeo-johnson').fit(X_samp)
+            for i,X_ in enumerate(listX):
+                if X_ is None:
+                    continue
+                listX[i] = power.transform(X_)
+        return listX,power
 
     #确实有用，需要进一步分析
     def quantile_trans_(self, random_state, X_samp, listX, distri='normal', noise=0):
@@ -132,7 +154,7 @@ class TabularDataset:
     def onFold(self,fold,config,pkl_path=None, train_index=None, valid_index=None, test_index=None):
         if pkl_path is not None:
             print("====== onFold pkl_path={} ......".format(pkl_path))
-        if pkl_path is not None and os.path.isfile(pkl_path):
+        if False and pkl_path is not None and os.path.isfile(pkl_path):
             with open(pkl_path, "rb") as fp:
                 [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,\
             self.quantile_noise,self.Y_trans_method,self.accu_scale,self.Y_mu_0, self.Y_std_0,self.zero_feats] = pickle.load(fp)
@@ -166,7 +188,8 @@ class TabularDataset:
                 self.X_train = (self.X_train - mean) / std
                 self.X_valid = (self.X_valid - mean) / std
                 self.X_test = (self.X_test - mean) / std
-            listX, _ = self.quantile_trans_(self.random_state, self.X_train,
+            trans_ = self.quantile_trans_
+            listX, _ = trans_(self.random_state, self.X_train,
                     [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
             self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]            
             print(f"====== TabularDataset::quantile_transform X_train={self.X_train.shape} X_valid={self.X_valid.shape} noise={self.quantile_noise} time={time.time()-t0:.5f}")

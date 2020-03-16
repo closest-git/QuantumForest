@@ -78,6 +78,7 @@ class DeTree(nn.Module):
             choice_weight = self.attention_func(attention, self.entmax_alpha, dim=0)    
         else:    
             choice_weight = self.attention_func(attention, dim=0)    
+            #choice_weight = attention
         #choice_weight = attention       #
 
         #c_max = torch.max(choice_weight)
@@ -273,7 +274,11 @@ class DeTree(nn.Module):
             torch.full([num_trees, self.nFeature], float('nan'), dtype=torch.float32), requires_grad=True
         )
 
-        self.InitPathWay()        
+        self.InitPathWay()    
+
+    def get_y_batch(self):
+        trainer = self.config.trainer
+        return trainer.y_batch
 
     def forward(self, input):
         if not self.isInitFromData:
@@ -298,14 +303,21 @@ class DeTree(nn.Module):
         threshold_logits = (feature_values - self.feature_thresholds) * torch.exp(-self.log_temperatures)
         #threshold_logits = feature_values * torch.exp(-self.log_temperatures)   #year实测，居然差不多！！！参见YEAR_nob_74.8.info
         #threshold_logits = (feature_values ) * torch.exp(-self.log_temperatures) - self.feature_thresholds 差不多
-        if False:  #relative distance has no effect
-            threshold_logits = threshold_logits/(torch.abs(self.feature_thresholds)+1.0e-4)
+
+        if self.config.support_vector=="1":
+            threshold_logits = threshold_logits.clamp_(-1, 1)       #hing_value (-oo,1)
+            self.gate_values = 1-torch.abs(threshold_logits)  
+        elif self.config.support_vector=="2": 
+            threshold_logits = threshold_logits.clamp_(-1, 1) 
+            if self.training:
+                y_batch = (self.get_y_batch()-0.5)*2
+                self.gate_values = 1-torch.einsum('btf,b->btf', threshold_logits, y_batch)     #1-y(wx+b) 
+                #self.gate_values =  self.gate_values.clamp_(0, 10) 
+                
+            else:
+               self.gate_values = threshold_logits        
+
         threshold_logits = torch.stack([-threshold_logits, threshold_logits], dim=-1)
-        if self.config.support_vector:
-            threshold_logits = threshold_logits.clamp_(-1, 1)
-            self.gate_values = threshold_logits
-        
-        
         # ^--[batch_size, num_trees, depth, 2]
 
         #RESPONSE_WEIGHTS 1)choice at each level of OTree 2) 3)c1*c2*c3*c4*c5 for each [leaf,tree,sample]
@@ -320,9 +332,7 @@ class DeTree(nn.Module):
             gate_values = (0.5 * threshold_logits + 0.5)
         elif self.bin_func == "":                        #后继乏力(0.630)
             gate_values = threshold_logits
-        if self.config.support_vector:
-            pass
-        else:
+        if self.config.support_vector=="0":
             self.gate_values = gate_values
 
         # ^--[batch_size, num_trees, depth, 2], approximately binary
