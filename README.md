@@ -1,3 +1,10 @@
+<!--
+ * @Author: Yingshi Chen
+* 
+ * @Date: 2020-02-28 19:43:52
+ * @
+# Description: 
+ -->
 
 
 # QuantumForest
@@ -54,7 +61,7 @@ python main_tabular_data.py
 
 ## Citation
 
-Please use the following bibtex entry:
+If you find this code useful, please consider citing:
 
 ```
 [1] Chen, Yingshi. "Deep differentiable forest with sparse attention for the tabular data." arXiv preprint arXiv:2003.00223 (2020).
@@ -71,9 +78,6 @@ Please use the following bibtex entry:
 
 - More papers.
 
-## License
-
-The provided implementation is strictly for academic purposes only. If anyone is interested in using our technology for any commercial use, please contact us.
 
 ## Author
 

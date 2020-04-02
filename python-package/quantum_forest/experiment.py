@@ -305,8 +305,11 @@ class Experiment(nn.Module):
         else:
             dict_info,prediction = self.evaluate_mse(XX_,YY_, device=config.device, batch_size=config.eval_batch_size)
             prediction = self.data.Y_trans(prediction)
-            lenY = 1#((YY_) ** 2).mean()
-            mse = ((YY_ - prediction) ** 2).mean()/lenY    
+            if config.err_relative:
+                lenY = ((YY_) ** 2).mean()
+                mse = ((YY_ - prediction) ** 2).mean()/lenY   
+            else:
+                mse = ((YY_ - prediction) ** 2).mean()/lenY    
         
         if config.cascade_LR:
             prediction=LinearRgressor.AfterPredict(XX_,prediction)   

@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-03-16 11:45:08
+@LastEditTime: 2020-04-02 18:44:13
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
@@ -41,6 +41,8 @@ class QForest_config:
         self.Augment = {"batch_noise":0}    #0.0001
         self.feature_fraction = 1   #0.7
         self.trainer = None;     self.cascade_LR = False;     self.average_training = False   #True不合适，难以和其它模块一起训练
+
+        self.err_relative = False
 
         self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 256, 8, 1
 
