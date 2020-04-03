@@ -102,7 +102,8 @@ class Experiment(nn.Module):
             self.feature_fraction = config.feature_fraction
             self.select_some_feats()
         else:
-            self.nFeat4Train = self.data.nFeature
+            self.nFeat4Train = self.data.nFeature       
+        
         
     
     def SetLearner(self,wLearner):
@@ -128,11 +129,15 @@ class Experiment(nn.Module):
         return path
 
     def load_checkpoint(self, tag=None, path=None, **kwargs):
-        assert tag is None or path is None, "please provide either tag or path or nothing, not both"
-        if tag is None and path is None:
-            path = get_latest_file(os.path.join(self.experiment_path, 'checkpoint_temp_[0-9]*.pth'))
-        elif tag is not None and path is None:
-            path = os.path.join(self.experiment_path, "checkpoint_{}.pth".format(tag))
+        if self.model.config.task=="predict":
+            checkpoint = torch.load(path)
+        else:
+            assert tag is None or path is None, "please provide either tag or path or nothing, not both"
+            if tag is None and path is None:
+                path = get_latest_file(os.path.join(self.experiment_path, 'checkpoint_temp_[0-9]*.pth'))
+            elif tag is not None and path is None:
+                path = os.path.join(self.experiment_path, "checkpoint_{}.pth".format(tag))
+
         checkpoint = torch.load(path)
 
         self.load_state_dict(checkpoint['model'], **kwargs)
@@ -288,7 +293,7 @@ class Experiment(nn.Module):
             logloss = log_loss(check_numpy(to_one_hot(y_test)), logits)
         return logloss
     
-    def AfterEpoch(self,epoch,XX_,YY_,best_mse,isTest=False):
+    def AfterEpoch(self,epoch,XX_,YY_,best_mse,isTest=False,isPredict=False):
         t0=time.time()
         config = self.model.config
         self.y_batch = None

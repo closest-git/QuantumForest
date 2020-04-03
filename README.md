@@ -1,12 +1,3 @@
-<!--
- * @Author: Yingshi Chen
-* 
- * @Date: 2020-02-28 19:43:52
- * @
-# Description: 
- -->
-
-
 # QuantumForest
 
 QuantumForest is a new lib on the model of differentiable decision trees. It has the advantages of both trees and neural networks. Experiments on large datasets show that QuantumForest has higher accuracy than both deep networks and best GBDT libs(XGBoost, Catboost, mGBDT,...). 
@@ -17,10 +8,11 @@ QuantumForest is a new lib on the model of differentiable decision trees. It has
 
 - Support **batch training** to reduce the memory usage greatly.
 
-- Support the **end-to-end learning** mode. No more work to preprocess data. 
-
-  ![](./Differentiable tree_1.png)
-
+- Support the **end-to-end learning** mode. 
+Reduce a lot of work on data preprocessing and feature engineering. 
+  
+![](./Differentiable tree_1.png)
+  
   
 
 ## Performance
