@@ -30,12 +30,18 @@ class PML_dataset(quantum_forest.TabularDataset):
         isY = True if "ot" in key else False
         return isY,key,name
 
+    def problem(self):
+        return "regression"
+        #return "regression_N"
+
     def load_files(self,isGroup=True):
         listX_,listY_=[],[]
         nPt=0
         if isGroup:
+            group_files=[]
             for group_path in self.data_path:
-                points,group_files = {}, [x[0] for x in os.walk(group_path) if x[0]!=group_path]   #glob.glob(f"{self.data_path}*")                
+                points,files = {}, [x[0] for x in os.walk(group_path) if x[0]!=group_path]   #glob.glob(f"{self.data_path}*")  
+                group_files.extend(files)              
         else:
             group_files = self.data_path
         nPoint = len(group_files)
@@ -55,15 +61,17 @@ class PML_dataset(quantum_forest.TabularDataset):
             self.X = np.vstack(listX_)
             if not self.isPrecit:
                 self.Y = np.vstack(listY_)
-                self.Y=self.Y[:,2]
+                self.Y=self.Y[:,self.ex_ey_hz]                
             else:
                 self.Y = np.zeros((self.X.shape[0],3))
             self.nFeature = self.X.shape[1]
             num_features = self.X.shape[1]
+            #self.X=self.X*1.0e6;            self.Y=self.Y*1.0e6
         else:
             print("Failed to load data@{self.data_path}!!!")
+        lenY = np.linalg.norm(self.Y)
         print(f"X_={self.X.shape} {self.X[:5,:]}\n{self.X[-5:,:]}")
-        print(f"Y_={self.Y.shape} {self.Y[:5]}\n{self.Y[-5:]}")
+        print(f"Y_={self.Y.shape} |Y|={lenY:.4f}\t{self.Y[:50]}\n{self.Y[-50:]}")
         return 
 
     def load_files_v0(self,files_path,isMerge=True):
@@ -101,7 +109,7 @@ class PML_dataset(quantum_forest.TabularDataset):
         #self.nClasses = 0
         return 
 
-    def __init__(self, dataset, data_path, normalize=False,nMostPt=100000,isPrecit=False,
+    def __init__(self, dataset, data_path, normalize=False,nMostPt=100000,isPrecit=False,ex_ey_hz=0,
                  quantile_transform=False, output_distribution='normal', quantile_noise=1.0e-3, **kwargs):
         self.random_state = 42
         self.quantile_noise = quantile_noise
@@ -109,8 +117,10 @@ class PML_dataset(quantum_forest.TabularDataset):
         self.data_path = data_path
         self.nMostPt = nMostPt
         self.isPrecit = isPrecit
+        self.ex_ey_hz=ex_ey_hz         #output component
+
         self.load_files()
-        self.zero_feats=[]
+        self.zero_feats=[]        
         
 
 def predict_(args):
@@ -154,14 +164,21 @@ if __name__ == "__main__":
         predict_(args)
         exit(-1)
 
-    data_paths = ["E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/"]
-    data = PML_dataset(dataset,data_path=data_paths)
-    config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"
+    data_paths = [
+            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
+            #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型右边的全部离散P点/",
+            #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型下边的全部离散P点/",
+            #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型左边的全部离散P点/",
+        ]
+    data = PML_dataset(dataset,data_path=data_paths,ex_ey_hz=2)        #,nMostPt=10
+    config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"    
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)
     config.err_relative = True
     config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"  
-    
+    #config.path_way = "OBLIVIOUS_map"
+    #config.batch_size = 256
+    #config.nTree = 512
     
     nFold = 5 if dataset != "HIGGS" else 20
     folds = KFold(n_splits=nFold, shuffle=True)

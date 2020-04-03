@@ -204,7 +204,8 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     trainer.SetLearner(wLearner)
     print(f"======  trainer.learner={trainer.model}\ntrainer.opt={trainer.opt}"\
         f"\n======  config={config.__dict__}")
-    print(f"======  YY_train={np.linalg.norm(YY_train):.3f},mean={data.Y_mean:.3f} std={data.Y_std:.3f}")
+    print(f"======  X_train={data.X_train.shape},YY_train={YY_train.shape}")
+    print(f"======  |YY_train|={np.linalg.norm(YY_train):.3f},mean={data.Y_mean:.3f} std={data.Y_std:.3f}")
     wLearner.AfterEpoch(isBetter=True, epoch=0)
     epoch,t0=0,time.time()
     for batch in node_lib.iterate_minibatches(data.X_train, YY_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):

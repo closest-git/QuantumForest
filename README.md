@@ -11,8 +11,9 @@ QuantumForest is a new lib on the model of differentiable decision trees. It has
 - Support the **end-to-end learning** mode. 
 Reduce a lot of work on data preprocessing and feature engineering. 
   
-![](./Differentiable tree_1.png)
-  
+
+![](Differentiable tree_1.png)
+
   
 
 ## Performance

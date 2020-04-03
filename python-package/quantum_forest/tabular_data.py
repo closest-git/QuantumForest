@@ -127,8 +127,10 @@ class TabularDataset:
             else:
                 pass
         else:
+            lenY = np.linalg.norm(self.y_train)
+            #print(f"Y_={self.y_train.shape} |Y|={lenY:.4f}\t{self.y_train[:50]}\n{self.y_train[-50:]}")
             mu, std = self.y_train.mean(), self.y_train.std()
-            print("====== onFold::Y_trans_\tmean = %.5f, std = %.5f" % (mu, std))
+            print("====== onFold::Y_trans_\t|Y|=%.5f, mean = %.5f, std = %.5f" % (lenY,mu, std))
             self.Y_mu_0=mu;                 self.Y_std_0=std            
             self.accu_scale = 1
 

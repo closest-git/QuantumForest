@@ -87,6 +87,8 @@ class DecisionBlock(nn.Sequential):
             if self.config.max_out:
                 if self.config.problem()=="classification":
                     pass
+                elif self.config.problem()=="regression_N":                    
+                    outputs = outputs.mean(dim=-2) 
                 else:
                     outputs = torch.max(outputs, -1).values
                 # outputs = torch.mean(outputs, -1)      确实不如maxout
