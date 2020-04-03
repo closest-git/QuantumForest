@@ -228,6 +228,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                 trainer.load_checkpoint()  # last
                 trainer.remove_old_temp_checkpoints()
             VisualAfterEpoch(epoch,visual,config,mse)
+            
             if False and epoch%10==9: #有bug啊
                 #YY_valid = YY_valid- prediction
                 dict_info,train_pred = trainer.evaluate_mse(data.X_train, YY_train, device=config.device, batch_size=config.eval_batch_size)
@@ -246,8 +247,9 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
         if trainer.step > best_step_mse + early_stopping_rounds:
             print('BREAK. There is no improvment for {} steps'.format(early_stopping_rounds))
             print("Best step: ", best_step_mse)
-            print(f"Best Val MSE: {best_mse:.5f}")
+            print(f"Best Val MSE: {best_mse:.5f}")            
             break
+    
     if data.X_test is not None:
         mse = trainer.AfterEpoch(epoch,data.X_test, YY_test,best_mse,isTest=True) 
         if False:
@@ -264,6 +266,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
             reg_Gate = dict_info["reg_Gate"]
             print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} \treg_Gate:{reg_Gate:.4g}time={time.time()-t0:.2f}' )
         best_mse = mse
+    trainer.save_checkpoint(tag=f'last_{mse:.6f}')
     return best_mse,mse
 
 

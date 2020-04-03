@@ -16,6 +16,7 @@ import lightgbm as lgb
 from sklearn.model_selection import KFold
 sys.path.insert(0, './')
 from main_tabular_data import *
+import argparse 
 import glob
 from io import StringIO
 
@@ -29,15 +30,44 @@ class PML_dataset(quantum_forest.TabularDataset):
         isY = True if "ot" in key else False
         return isY,key,name
 
-    def load_files(self):
-        points,list_of_files = {}, glob.glob(f"{self.data_path}*")
+    def load_files(self,isGroup=True):
+        listX_,listY_=[],[]
+        nPt=0
+        if isGroup:
+            for group_path in self.data_path:
+                points,group_files = {}, [x[0] for x in os.walk(group_path) if x[0]!=group_path]   #glob.glob(f"{self.data_path}*")                
+        else:
+            group_files = self.data_path
+        nPoint = len(group_files)
+        for pt_files in group_files:
+            #if pt_files==group_path:                continue
+            X_,Y_,_ = self.load_files_v0(pt_files+"/")
+            assert X_.shape==(1500,12) and Y_.shape==(1500,3)
+            listX_.append(X_);      listY_.append(Y_)
+            nPt = nPt+1
+            if nPt>=self.nMostPt:   
+                break
+        if len(listX_)>0:            
+            self.X, self.Y = np.vstack(listX_),np.vstack(listY_)
+            self.Y=self.Y[:,2]
+            self.nFeature = self.X.shape[1]
+            num_features = self.X.shape[1]
+        else:
+            print("Failed to load data@{self.data_path}!!!")
+        print(f"X_={self.X.shape} {self.X[:5,:]}\n{self.X[-5:,:]}")
+        print(f"Y_={self.Y.shape} {self.Y[:5]}\n{self.Y[-5:]}")
+        return 
+
+    def load_files_v0(self,files_path,isMerge=True):
+        points,list_of_files = {}, glob.glob(f"{files_path}*")
         nFile = len(list_of_files)
+        assert nFile==15
         X_,Y_ = pd.DataFrame(),pd.DataFrame()
         for id,file in enumerate(list_of_files) :
             assert os.path.isfile(file)
             isY,key,name = self.file2key(file)
-            if not "right" in key:
-                continue
+            #if not "right" in key:
+            #    continue
             with open(file, 'r') as file :
                 filedata = file.read()           
             filedata = StringIO(filedata.replace('D', 'e'))     #真麻烦
@@ -49,35 +79,77 @@ class PML_dataset(quantum_forest.TabularDataset):
                 Y_[key]=df[0]
             else:
                 X_[key]=df[0]
-        print(f"X_={X_.shape} {X_.head()}\n{X_.tail()}")
-        print(f"Y_={Y_.shape} {Y_.head()}\n{Y_.tail()}")
+
         num_features = X_.shape[1]
         assert X_.shape[0]==Y_.shape[0]
-        self.X, self.Y = X_.values.astype('float32'), Y_.values.astype('float32')
-        self.Y=self.Y[:,2]
-        self.nFeature = self.X.shape[1]
+        if isMerge:
+            return X_.values.astype('float32'), Y_.values.astype('float32'),None
+        else:
+            print(f"X_={X_.shape} {X_.head()}\n{X_.tail()}")
+            print(f"Y_={Y_.shape} {Y_.head()}\n{Y_.tail()}")            
+            self.X, self.Y = X_.values.astype('float32'), Y_.values.astype('float32')
+            self.Y=self.Y[:,2]
+            self.nFeature = self.X.shape[1]
         #self.nClasses = 0
         return 
 
-    def __init__(self, dataset, data_path, normalize=False,
+    def __init__(self, dataset, data_path, normalize=False,nMostPt=100000,
                  quantile_transform=False, output_distribution='normal', quantile_noise=1.0e-3, **kwargs):
         self.random_state = 42
         self.quantile_noise = quantile_noise
         self.name = f"{dataset}"
         self.data_path = data_path
+        self.nMostPt = nMostPt
         self.load_files()
         self.zero_feats=[]
+        
 
-
-if __name__ == "__main__":
-    dataset = "PML"
-    data = PML_dataset(dataset,data_path="E://xiada//FengNX//200Groups_For training PML//G1//")
-    
+def predict_(args):
+    model = args.model
+    if not os.path.isfile(args.model):
+        print(f"'{args.model}' is not a valid MODEL file!!!")
+        return
+    data_paths = [args.predict]
+    data = PML_dataset("PML_predict",data_path=data_paths,nMostPt=1)
     config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)
-
+    config.err_relative = True
     config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"    
+    trainer = quantum_forest.Experiment(
+        config,data,model=wLearner, loss_function=F.mse_loss,verbose=True
+    )
+    trainer.load_checkpoint(args.model)
+
+    map_location = lambda storage, loc: storage
+    if torch.cuda.is_available():
+        map_location = None
+    torch_model.load_state_dict(model_zoo.load_url(model_url, map_location=map_location))
+    
+    sample_dir = args.predict
+    pass
+
+if __name__ == "__main__":
+    dataset = "PML"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, help='path to pretrained model', default='E:/QuantumForest/logs/PML_QF_shallow_0/pml_0.000049.pth')
+    parser.add_argument('--predict', type=str, help='the directory include testing sample files', 
+            default="E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/")
+    args, unknown = parser.parse_known_args()
+      
+    if False and hasattr(args,'predict') and os.path.isdir(args.predict):
+        predict_(args)
+        exit(-1)
+
+    data_paths = ["E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/"]
+    data = PML_dataset(dataset,data_path=data_paths)
+    config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"
+    random_state = 42
+    config.device = quantum_forest.OnInitInstance(random_state)
+    config.err_relative = True
+    config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"  
+    
+    
     nFold = 5 if dataset != "HIGGS" else 20
     folds = KFold(n_splits=nFold, shuffle=True)
     index_sets=[]
