@@ -19,6 +19,7 @@ from main_tabular_data import *
 import argparse 
 import glob
 from io import StringIO
+import pandas_profiling
 
 class PML_dataset(quantum_forest.TabularDataset):
     def file2key(self,file):
@@ -70,6 +71,12 @@ class PML_dataset(quantum_forest.TabularDataset):
         else:
             print("Failed to load data@{self.data_path}!!!")
         lenY = np.linalg.norm(self.Y)
+        if False:   #时间太长，pandas_profiling低效
+            df = pd.DataFrame(self.X)
+            print(df.head())
+            pfr = pandas_profiling.ProfileReport(df)
+            pfr.to_file("./example.html")
+
         print(f"X_={self.X.shape} {self.X[:5,:]}\n{self.X[-5:,:]}")
         print(f"Y_={self.Y.shape} |Y|={lenY:.4f}\t{self.Y[:50]}\n{self.Y[-50:]}")
         return 
@@ -86,7 +93,8 @@ class PML_dataset(quantum_forest.TabularDataset):
             #    continue
             with open(file, 'r') as file :
                 filedata = file.read()           
-            filedata = StringIO(filedata.replace('D', 'e'))     #真麻烦
+            filedata = StringIO(filedata.replace('E', 'e'))     #真麻烦
+            #print(filedata)
             df = pd.read_csv(filedata,header = None,dtype=np.float)    
             columns = df.columns
             #df.rename(columns={columns[0]:key},inplace=True) 
@@ -165,8 +173,9 @@ if __name__ == "__main__":
         exit(-1)
 
     data_paths = [
-            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
+            #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
             #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型右边的全部离散P点/",
+            "E:/xiada/FengNX/2028组/模型右边的全部离散P点/",
             #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型下边的全部离散P点/",
             #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型左边的全部离散P点/",
         ]

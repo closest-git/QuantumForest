@@ -9,6 +9,54 @@ from collections import OrderedDict
 
 from torch.jit import script
 
+class excitation_max(nn.Module):
+    def __init__(self, nOP, reduction=2):
+        super(se_operate, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)     #The number of output features is equal to the number of input planes.
+        self.nOP,reduction = nOP,2
+        self.fc = nn.Sequential(
+            nn.Linear(nOP, nOP // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(nOP // reduction, nOP, bias=False),
+            nn.Softmax()
+        )  
+        self.desc=f"se_operate_{reduction}"
+        self.InitAlpha()
+    
+    def __repr__(self):
+        return self.desc
+
+    def InitAlpha(self):
+        self.nStep = 0
+        self.alpha = torch.zeros(self.nOP)
+    
+    def UpdateAlpha(self):
+        self.alpha=self.alpha/self.nStep
+        a = torch.sum(self.alpha).item()
+        assert np.isclose(a, 1) 
+
+    #elegant code from https://github.com/moskomule/senet.pytorch/blob/master/senet/se_module.py
+    def forward(self, listOPX):
+        assert len(listOPX)==self.nOP
+        y_list=[]
+        for i,opx in enumerate(listOPX):
+            y = torch.mean(self.avg_pool(opx).squeeze(),dim=1)
+            y_list.append(y)
+        y = torch.stack( y_list ,dim=1) 
+        w = self.fc(y)
+        m_ = torch.mean(w,dim=0) 
+        #assert np.isclose(torch.sum(m_).item(), 1) 
+        if False:       #原则上应停止累加
+            pass
+        else:
+            self.alpha = self.alpha+ m_.cpu()
+            self.nStep = self.nStep+1           
+        out = 0
+        for i,opx in enumerate(listOPX):
+            w_i = w[:,i:i+1].squeeze()
+            out = out+torch.einsum('bcxy,b->bcxy',opx,w_i)          
+        
+        return out
 #https://github.com/KrisKorrel/sparsemax-pytorch/blob/master/sparsemax.py
 #https://github.com/KrisKorrel/sparsemax-pytorch
 class Sparsemax(nn.Module):

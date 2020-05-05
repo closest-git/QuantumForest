@@ -104,7 +104,13 @@ def GBDT_test(data,fold_n,num_rounds = 100000,bf=1,ff=1):
         acc_train,acc_=model.best_score_['training'][metric], model.best_score_['valid_1'][metric]
     if data.X_test is not None:
         pred_val = model.predict(data.X_test)
-        acc_ = ((data.y_test - pred_val) ** 2).mean()
+        if False:#config.err_relative:
+            #nrm_Y = ((YY_) ** 2).mean()
+            #mse = ((YY_ - prediction) ** 2).mean()/nrm_Y  
+            lenY = np.linalg.norm(data.y_test) 
+            acc_ = np.linalg.norm(data.y_test - pred_val)/lenY 
+        else:
+            acc_ = ((data.y_test - pred_val) ** 2).mean()
         print(f'====== Best step: test={data.X_test.shape} ACCU@Test={acc_:.5f}')
     return acc_,fold_importance
 

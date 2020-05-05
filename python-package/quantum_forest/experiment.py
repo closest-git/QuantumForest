@@ -311,12 +311,18 @@ class Experiment(nn.Module):
             dict_info,prediction = self.evaluate_mse(XX_,YY_, device=config.device, batch_size=config.eval_batch_size)
             prediction = self.data.Y_trans(prediction)
             if config.err_relative:
-                nrm_Y = ((YY_) ** 2).mean()
-                mse = ((YY_ - prediction) ** 2).mean()/nrm_Y  
-                #lenY = np.linalg.norm(YY_) 
-                #mse = np.linalg.norm(YY_ - prediction)/lenY  
+                nz = len(YY_)
+                lenY = np.linalg.norm(YY_,2) 
+                lenOff = np.linalg.norm(YY_ - prediction,2)
+                avg_Y2 = ((YY_) ** 2).mean()
+                #d_1 = lenY*lenY-nrm_Y*nz
+                #d_2 = lenOff*lenOff-((YY_ - prediction) ** 2).mean()*nz                 
+                mse_0 = ((YY_ - prediction) ** 2).mean()/avg_Y2
+                mse = lenOff/lenY       #relative error
+                d_3 = mse*mse-mse_0
             else:
-                mse = ((YY_ - prediction) ** 2).mean()    
+                mse = ((YY_ - prediction) ** 2).mean()    #显然相对误差更合理欸
+                #rmse = sqrt(mse)  
         
         if config.cascade_LR:
             prediction=LinearRgressor.AfterPredict(XX_,prediction)   
