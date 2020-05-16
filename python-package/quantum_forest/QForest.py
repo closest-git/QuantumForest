@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-04-03 11:35:04
+@LastEditTime: 2020-05-16 20:15:20
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
@@ -44,6 +44,7 @@ class QForest_config:
 
         self.err_relative = False
         self.task = "train"
+        self.attention_alg = "weight"       #
 
         self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 256, 8, 1
 

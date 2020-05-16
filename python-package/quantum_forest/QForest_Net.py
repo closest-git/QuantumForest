@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-04-03 14:43:47
+@LastEditTime: 2020-05-16 20:17:59
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -165,7 +165,8 @@ class QForest_Net(nn.Module):
         #self.nFeatInX = nFeat
         print("====== QForest_Net::__init__   OK!!!")        
         #print(self)
-        dump_model_params(self)
+        if True:
+            dump_model_params(self)
     
 
   
@@ -198,6 +199,10 @@ class QForest_Net(nn.Module):
             return x
     
     def Regularization(self):
+        # self.reg_L1,self.reg_L2=0,0
+        # reg = 0
+        # return
+        
         dict_val = self.get_variables({"attention":[],"gate_values":[]})
         reg,l1,l2 = 0,0,0
         for att in dict_val["attention"]:

@@ -5,7 +5,7 @@ import numpy as np
 import random
 import math
 import copy
-from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15
+from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15,excitation_max
 #import entmax      #from entmax import sparsemax, entmax15, entmax_bisect
 from .some_utils import check_numpy
 from warnings import warn
@@ -67,14 +67,18 @@ class DeTree(nn.Module):
     #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
     def get_attention_value(self,input):
         nBatch,in_feat = input.shape[0],input.shape[1]
-        #att_max = torch.max(self.feat_attention)       无效
-        #self.feat_attention.data = self.feat_attention.data / att_max
+        if type(self.attention_func)==excitation_max:
+            feature_values = self.attention_func(input)
+            return feature_values
+
         if self.config.feature_fraction<1:
             attention = self.feat_attention[self.config.trainer.feat_cands,:]
         else:
             attention = self.feat_attention
         #choice_weight = self.choice_function(attention, dim=0)    
-        if self.attention_func.__name__=="entmax_bisect":  
+        if type(self.attention_func) is excitation_max:
+            choice_weight = self.attention_func(attention)  
+        elif self.attention_func.__name__=="entmax_bisect":  
             choice_weight = self.attention_func(attention, self.entmax_alpha, dim=0)    
         else:    
             choice_weight = self.attention_func(attention, dim=0)    
@@ -217,12 +221,19 @@ class DeTree(nn.Module):
         self.in_features = in_features
         self.depth, self.num_trees, self.response_dim, self.flatten_output = \
             depth, num_trees, config.response_dim, config.flatten_output
+        self.nFeature = depth
+        if self.config.path_way=="TREE_map":
+            self.nFeature = 2**depth-1
+        self.nGateFuncs = self.num_trees*self.nFeature
         
-        if False and isAdptiveAlpha:      #可以试试，就是时间太长
-            self.entmax_alpha = nn.Parameter(torch.tensor(1.5, requires_grad=True))
-            self.attention_func = entmax.entmax_bisect    #sparsemax, entmax15, entmax_bisect
+        if self.config.attention_alg == "weight":
+            if False and isAdptiveAlpha:      #可以试试，就是时间太长
+                self.entmax_alpha = nn.Parameter(torch.tensor(1.5, requires_grad=True))
+                self.attention_func = entmax.entmax_bisect    #sparsemax, entmax15, entmax_bisect
+            else:
+                self.attention_func = entmax15
         else:
-            self.attention_func = entmax15
+            self.attention_func = excitation_max(in_features,self.nGateFuncs,self.num_trees)
         self.bin_func = "05_01"     #"05_01"        "entmoid15" "softmax"
         self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
@@ -260,12 +271,13 @@ class DeTree(nn.Module):
             self.response = None
         self.path_map = None
 
-        self.nFeature = depth
-        if self.config.path_way=="TREE_map":
-            self.nFeature = 2**depth-1
-        self.init_attention(feat_info)
-        self.nAtt = self.feat_attention.numel()  # sparse attention
-        self.nzAtt = self.nAtt - self.feat_attention.nonzero().size(0)
+        
+        if type(self.attention_func)==excitation_max:
+            pass
+        else:
+            self.init_attention(feat_info)
+            self.nAtt = self.feat_attention.numel()  # sparse attention
+            self.nzAtt = self.nAtt - self.feat_attention.nonzero().size(0)
         
         self.feature_thresholds = nn.Parameter(
             torch.full([num_trees, self.nFeature], float('nan'), dtype=torch.float32), requires_grad=True
@@ -425,11 +437,19 @@ class DeTree(nn.Module):
             self.log_temperatures.data[...] = torch.log(torch.as_tensor(temperatures) + eps)
 
     def __repr__(self):
+        if type(self.attention_func)==excitation_max:
+            f_info = self.attention_func.__repr__()
+            f_name = "excitation_max"
+            f_init = ""
+        else:
+            f_info = 0 if self.no_attention else self.feat_attention.shape[0]
+            f_name = self.attention_func.__name__
+            f_init = self.init_attention_func.__name__
         main_str = "{}(F={},f={},B={}, T={},D={}, response_dim={}, " \
                "attention_func={}=>{},flatten_output={},bin_func={},init_response=[{},{:.3f},{:.3f}])".format(
-            self.__class__.__name__, 0 if self.no_attention else self.feat_attention.shape[0],
+            self.__class__.__name__, f_info,
             self.nFeature,self.config.batch_size,self.num_trees, self.depth, self.response_dim, 
-            self.init_attention_func.__name__,self.attention_func.__name__,self.flatten_output,
+            f_init,f_name,self.flatten_output,
             self.bin_func,
             self.init_responce_func.__name__,self.response_mean,self.response_std
         )

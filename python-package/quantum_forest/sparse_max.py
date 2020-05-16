@@ -10,53 +10,77 @@ from collections import OrderedDict
 from torch.jit import script
 
 class excitation_max(nn.Module):
-    def __init__(self, nOP, reduction=2):
-        super(se_operate, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)     #The number of output features is equal to the number of input planes.
-        self.nOP,reduction = nOP,2
-        self.fc = nn.Sequential(
-            nn.Linear(nOP, nOP // reduction, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(nOP // reduction, nOP, bias=False),
-            nn.Softmax()
-        )  
-        self.desc=f"se_operate_{reduction}"
-        self.InitAlpha()
+    class attention_conv(nn.Module):
+        def __init__(self, nInFeat, k_size=3):
+            super(attention_fc, self).__init__()
+            self.k_size = k_size
+            self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False)
+        
+        def forward(self, x):
+            pass
+
+        def __repr__(self):
+            return f"_conv{self.k_size}"
+
+    class attention_fc(nn.Module):
+        def __init__(self, nInFeat, reduction=16):
+            super(excitation_max.attention_fc, self).__init__()
+            self.nEmbed = max(2,nInFeat//reduction)
+            self.nInFeat = nInFeat
+            self.fc_embed = nn.Sequential(
+                nn.Linear(nInFeat, self.nEmbed, bias=False),
+                nn.ReLU(inplace=True),
+                nn.Linear(self.nEmbed, nInFeat, bias=False),
+                nn.Sigmoid()
+            )
+
+        def forward(self, x):
+            b, f = x.size()
+            assert f==self.nInFeat
+            y = torch.mean(x,dim=0)
+            y = self.fc_embed(y)
+            # out = torch.einsum('bf,f->bf', x,y)    
+            out = torch.einsum('bf,f->b', x,y)         
+            return out
+        
+        def __repr__(self):
+            return f"fc_embed_{self.nEmbed}"
+        
+    #feat_attention = torch.zeros([in_features, nGateFuncs])
+    def __init__(self, nInFeat,nGateFuncs,nTree, x=0):
+        super(excitation_max, self).__init__()
+        self.nInFeat = nInFeat
+        self.nTree = nTree
+        self.nGate = nGateFuncs
+        attention_net = excitation_max.attention_fc
+        self.listExcitation=nn.ModuleList( [attention_net(nInFeat) for i in range(nGateFuncs)] )
+        info = self.listExcitation[0].__repr__()
+        self.desc=f"excitation_max_[{nGateFuncs}]_\'{info}\' nInFeat={nInFeat}"
+        # self.InitAlpha()
+        self.__name__ = "excitation_max_NET"
     
     def __repr__(self):
         return self.desc
 
     def InitAlpha(self):
         self.nStep = 0
-        self.alpha = torch.zeros(self.nOP)
+        self.alpha = torch.zeros(self.nFeat)
     
     def UpdateAlpha(self):
         self.alpha=self.alpha/self.nStep
         a = torch.sum(self.alpha).item()
         assert np.isclose(a, 1) 
 
-    #elegant code from https://github.com/moskomule/senet.pytorch/blob/master/senet/se_module.py
-    def forward(self, listOPX):
-        assert len(listOPX)==self.nOP
-        y_list=[]
-        for i,opx in enumerate(listOPX):
-            y = torch.mean(self.avg_pool(opx).squeeze(),dim=1)
-            y_list.append(y)
-        y = torch.stack( y_list ,dim=1) 
-        w = self.fc(y)
-        m_ = torch.mean(w,dim=0) 
-        #assert np.isclose(torch.sum(m_).item(), 1) 
-        if False:       #原则上应停止累加
-            pass
-        else:
-            self.alpha = self.alpha+ m_.cpu()
-            self.nStep = self.nStep+1           
-        out = 0
-        for i,opx in enumerate(listOPX):
-            w_i = w[:,i:i+1].squeeze()
-            out = out+torch.einsum('bcxy,b->bcxy',opx,w_i)          
-        
-        return out
+    def forward(self, x):
+        b, f = x.size()
+        feature_values = torch.stack(
+            [ net(x) for net in self.listExcitation],dim=1
+        )
+        feature_values = feature_values.view(b,self.nTree,-1)
+        # attention = attention.view(attention.shape[0],self.nTree,-1)
+        # feature_values = torch.einsum('bf,fnd->bnd', x, attention)
+        return feature_values
+
 #https://github.com/KrisKorrel/sparsemax-pytorch/blob/master/sparsemax.py
 #https://github.com/KrisKorrel/sparsemax-pytorch
 class Sparsemax(nn.Module):
