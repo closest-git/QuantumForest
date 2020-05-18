@@ -1,7 +1,7 @@
 '''
 @Author: Yingshi Chen
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-05-16 20:17:59
+@LastEditTime: 2020-05-17 20:25:24
 @LastEditors: Please set LastEditors
 @Description: In User Settings Edit
 @FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
@@ -138,13 +138,14 @@ class QForest_Net(nn.Module):
         
         #self.nAtt, self.nzAtt = 0, 0        #sparse attention
         if self.config.data_normal=="NN":       #将来可替换为deepFM
-            self.emb_dims = [in_features,256]   #multilayer未见效果     0.590(差于0.569)
-            self.emb_dims = [in_features,128]
+            nEmbed = max(2,in_features//2)
+            nEmbed = in_features*2,256,128
+            self.emb_dims = [in_features,nEmbed]
             #self.embedding = nn.ModuleList([nn.Embedding(m, d) for m, d in emb_szs])
-            nEmb = len(self.emb_dims)-1
+            nLayer = len(self.emb_dims)
             self.embeddings = nn.ModuleList(
-                [nn.Linear(self.emb_dims[i], self.emb_dims[i + 1]) for i in range(nEmb)] ) 
-            nFeat = self.emb_dims[nEmb]
+                [nn.Linear(self.emb_dims[i], self.emb_dims[i + 1]) for i in range(nLayer-1)] ) 
+            nFeat = self.emb_dims[nLayer-1]
             for layer in self.embeddings:
                 nn.init.kaiming_normal_ (layer.weight.data)
         else:

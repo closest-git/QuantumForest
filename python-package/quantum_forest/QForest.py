@@ -1,10 +1,10 @@
+
 '''
 @Author: Yingshi Chen
+
 @Date: 2020-02-14 11:59:10
-@LastEditTime: 2020-05-16 20:15:20
-@LastEditors: Please set LastEditors
-@Description: In User Settings Edit
-@FilePath: \QuantumForest\python-package\quantum_forest\QForest.py
+@
+# Description: 
 '''
 class QForest_config:
     def __init__(self,data, lr_base, nLayer=1,choice_func="r_0.5",feat_info = None,random_seed=42):

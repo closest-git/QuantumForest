@@ -9,6 +9,7 @@ from .sparse_max import sparsemax, sparsemoid, entmoid15,entmax15,excitation_max
 #import entmax      #from entmax import sparsemax, entmax15, entmax_bisect
 from .some_utils import check_numpy
 from warnings import warn
+from .attention import *
 
 class DeTree(nn.Module):
     def init_attention(self, feat_info=None): 
@@ -225,6 +226,7 @@ class DeTree(nn.Module):
         if self.config.path_way=="TREE_map":
             self.nFeature = 2**depth-1
         self.nGateFuncs = self.num_trees*self.nFeature
+        # self.att_reponse = eca_reponse(self.num_trees)
         
         if self.config.attention_alg == "weight":
             if False and isAdptiveAlpha:      #可以试试，就是时间太长
@@ -330,6 +332,7 @@ class DeTree(nn.Module):
                self.gate_values = threshold_logits        
 
         threshold_logits = torch.stack([-threshold_logits, threshold_logits], dim=-1)
+        #threshold_logits = F.relu(threshold_logits)     # 有意思
         # ^--[batch_size, num_trees, depth, 2]
 
         #RESPONSE_WEIGHTS 1)choice at each level of OTree 2) 3)c1*c2*c3*c4*c5 for each [leaf,tree,sample]
@@ -355,8 +358,8 @@ class DeTree(nn.Module):
             #each column is a Probability 内存大户，1024*2048*5*32=320M个float
             path_ = torch.index_select(gate_values.flatten(-2,-1),dim=-1,index=self.path_map).view(batch_size, self.num_trees,self.depth,-1)             
             assert path_.shape[-1]==2 ** self.depth
-
         response_weights = torch.prod(path_, dim=-2)       # ^-- [batch_size, num_trees, 2 ** depth]
+        #response_weights,_ = torch.min(path_, dim=-2)       # 有意思
         #if not path_.requires_grad and torch.cuda.is_available:
         #    del path_;      torch.cuda.empty_cache()
         if self.config.reg_Gate!=0:
@@ -369,6 +372,8 @@ class DeTree(nn.Module):
             
         if self.config.leaf_output == "leaf_distri":
             response = torch.einsum('btl,tcl->btc', response_weights, self.response)            # ^-- [batch_size, num_trees, distri_dim]
+            if hasattr(self,"att_reponse")
+                reponse = self.att_reponse(response)
             return response.flatten(1, 2) if self.flatten_output else response
         elif self.config.leaf_output == "Y":        #有问题，如何validate?
             y_batch = self.config.y_batch
