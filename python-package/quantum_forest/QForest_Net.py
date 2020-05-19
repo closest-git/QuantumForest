@@ -1,18 +1,22 @@
 '''
 @Author: Yingshi Chen
+
 @Date: 2020-02-14 11:06:23
-@LastEditTime: 2020-05-17 20:25:24
-@LastEditors: Please set LastEditors
-@Description: In User Settings Edit
-@FilePath: \QuantumForest\python-package\quantum_forest\QForest_Net.py
+@
+# Description: 
 '''
+
 import torch.nn as nn
 import seaborn as sns;      sns.set()
 import numpy as np
+import time
+import gc
 from .DecisionBlock import *
 import matplotlib.pyplot as plt
 from .some_utils import *
 from cnn_models import *
+from qhoptim.pyt import QHAdam
+from .experiment import Experiment
 
 class Simple_CNN(nn.Module):
     def __init__(self, num_blocks, in_channel=3,out_channel=10):
@@ -107,7 +111,7 @@ class Simple_VGG(nn.Module):
         return out
 
             
-class QForest_Net(nn.Module):
+class QF_Net(nn.Module):
     def pick_cnn(self):
         self.back_bone = 'resnet18_x'
         in_channel = self.config.response_dim
@@ -125,7 +129,7 @@ class QForest_Net(nn.Module):
         return cnn_model
 
     def __init__(self, in_features, config,feat_info=None,visual=None):
-        super(QForest_Net, self).__init__()
+        super(QF_Net, self).__init__()
         config.feat_info = feat_info
         self.layers = nn.ModuleList()
         self.nTree = config.nTree
@@ -164,7 +168,7 @@ class QForest_Net(nn.Module):
         self.pooling = None
         self.visual = visual
         #self.nFeatInX = nFeat
-        print("====== QForest_Net::__init__   OK!!!")        
+        print("====== QF_Net::__init__   OK!!!")        
         #print(self)
         if True:
             dump_model_params(self)
@@ -266,5 +270,168 @@ class QForest_Net(nn.Module):
         for layer in self.layers:
             layer.freeze_some_params(freeze_info)
 
+'''
+    sklearn-style 和QForest_Net区别很大
+'''
+class QuantumForest(object):
+    def load_dll(self):
+        pass
 
+    def __init__(self, config,data,feat_info=None,visual=None):
+        super(QuantumForest, self).__init__()
+        self.config = config
+        self.problem = None
+        self.preprocess = None
+        self.Learners=[]
+        in_features = config.in_features
+        qForest = QF_Net(in_features,config, feat_info=feat_info,visual=visual).to(config.device)   
+        self.Learners.append(qForest)    
+        self._n_classes = None
+        self.best_iteration_ = 0
+        self.best_iteration = 0
+        self.best_score = 0
+
+        #weight_decay的值需要反复适配       如取1.0e-6 还可以  0.61142-0.58948
+        self.optimizer=QHAdam;           
+        self.optimizer_params = { 'nus':(0.7, 1.0), 'betas':(0.95, 0.998),'lr':config.lr_base,'weight_decay':1.0e-8 }
+        #一开始收敛快，后面要慢一些
+        #optimizer = torch.optim.Adam;    optimizer_params = {'lr':config.lr_base }
+        config.eval_batch_size = 512 if config.leaf_output=="distri2CNN" else \
+                512 if config.path_way=="TREE_map" else 1024
+
+        wLearner=self.Learners[-1]
+        self.trainer = Experiment(
+            config,data,
+            model=wLearner, loss_function=F.mse_loss,
+            experiment_name=config.experiment,
+            warm_start=False,   
+            Optimizer=self.optimizer,        optimizer_params=self.optimizer_params,
+            verbose=True,      #True
+            n_last_checkpoints=5
+        )   
+        config.trainer = self.trainer        
+        self.trainer.SetLearner(wLearner)
+
+    def __del__(self):
+        try:
+            #print("LiteMORT::__del__...".format())
+            if self.hLIB is not None:
+                self.mort_clear(self.hLIB)
+            self.hLIB = None
+        except AttributeError:
+            pass
+    
+    def EDA(self,flag=0x0):
+        '''
+
+        :param flag:
+        :return:
+        '''
+        return
+    
+    def fit(self,X_train_0, y_train,eval_set=None,categorical_feature=None,discrete_feature=None, params=None,flag=0x0):
+        config = self.config
+        print("====== QuantumForest_fit X_train_0={} y_train={}......".format(X_train_0.shape, y_train.shape))
+        gc.collect()
+        # isUpdate,y_train_1,y_eval_update = self.problem.BeforeFit([X_train_0, y_train], eval_set)
+        # if isUpdate:
+        #     y_train=y_train_1
+        self.feat_info={"categorical":categorical_feature,"discrete":discrete_feature}
+        in_features = X_train_0.shape[1]
+
+        if False:       # trigger data-aware init,作用不明显
+            with torch.no_grad():
+                res = qForest(torch.as_tensor(data.X_train[:1000], device=config.device))
+        #if torch.cuda.device_count() > 1:        model = nn.DataParallel(model)
+
+
+
+        loss_history, mse_history = [], []
+        best_mse = float('inf')
+        best_step_mse = 0
+        early_stopping_rounds = 3000
+        report_frequency = 1000
+        #report_frequency = 10
+        trainer = self.trainer
+        data = self.trainer.data
+        wLearner=self.Learners[-1]        
+
+        print(f"======  trainer.learner={trainer.model}\ntrainer.opt={trainer.opt}"\
+            f"\n======  config={config.__dict__}")
+        print(f"======  X_train={data.X_train.shape},YY_train={y_train.shape}")
+        print(f"======  |YY_train|={np.linalg.norm(y_train):.3f},mean={data.Y_mean:.3f} std={data.Y_std:.3f}")
+        wLearner.AfterEpoch(isBetter=True, epoch=0)
+        epoch,t0=0,time.time()
+        for batch in iterate_minibatch(data.X_train, y_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
+            metrics = trainer.train_on_batch(*batch, device=config.device)
+            loss_history.append(metrics['loss'])
+            if trainer.step%10==0:
+                symbol = "^" if config.cascade_LR else ""
+                print(f"\r============ {trainer.step}{symbol}\t{metrics['loss']:.5f}\tL1=[{wLearner.reg_L1:.4g}*{config.reg_L1}]"
+                f"\tL2=[{wLearner.L_gate:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
+                ,end="")
+            if trainer.step % report_frequency == 0:
+                epoch=epoch+1
+                if torch.cuda.is_available():   torch.cuda.empty_cache()
+                mse = trainer.AfterEpoch(epoch,data.X_valid,YY_valid,best_mse)            
+                if mse < best_mse:
+                    best_mse = mse
+                    best_step_mse = trainer.step
+                    trainer.save_checkpoint(tag='best_mse')
+                mse_history.append(mse)
+                if config.average_training:
+                    trainer.load_checkpoint()  # last
+                    trainer.remove_old_temp_checkpoints()
+                VisualAfterEpoch(epoch,visual,config,mse)      
+
+            if trainer.step>50000:
+                break
+            if trainer.step > best_step_mse + early_stopping_rounds:
+                print('BREAK. There is no improvment for {} steps'.format(early_stopping_rounds))
+                print("Best step: ", best_step_mse)
+                print(f"Best Val MSE: {best_mse:.5f}")            
+                break
+        
+        if data.X_test is not None:
+            mse = trainer.AfterEpoch(epoch,data.X_test, YY_test,best_mse,isTest=True) 
+            if False:
+                if torch.cuda.is_available():  torch.cuda.empty_cache()
+                trainer.load_checkpoint(tag='best_mse')
+                t0=time.time()
+                dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=config.device, batch_size=config.eval_batch_size)
+                if config.cascade_LR:
+                    prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
+                #prediction = prediction*data.accu_scale+data.Y_mu_0
+                prediction = data.Y_trans(prediction)
+                mse = ((data.y_test - prediction) ** 2).mean()
+                #mse = dict_info["mse"]
+                reg_Gate = dict_info["reg_Gate"]
+                print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} \treg_Gate:{reg_Gate:.4g}time={time.time()-t0:.2f}' )
+            best_mse = mse
+        trainer.save_checkpoint(tag=f'last_{mse:.6f}')
+        self.best_score = best_mse        # return best_mse,mse
+        return self
+
+
+    def predict(self, X_,pred_leaf=False, pred_contrib=False,raw_score=False,num_iteration=-1, flag=0x0):
+        """Predict class or regression target for X.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            The input samples. Internally, it will be converted to
+            ``dtype=np.float32`` and if a sparse matrix is provided
+            to a sparse ``csr_matrix``.
+
+        Returns
+        -------
+        y : array, shape (n_samples,)
+            The predicted values.
+        """
+        self.profile.Snapshot("PRED_0")
+        # print("====== LiteMORT_predict X_={} ......".format(X_.shape))
+        Y_ = self.predict_raw(X_,pred_leaf, pred_contrib,raw_score,flag=flag)
+        Y_ = self.problem.AfterPredict(X_,Y_)
+        Y_ = self.problem.OnResult(Y_,pred_leaf,pred_contrib,raw_score)
+        return Y_
 

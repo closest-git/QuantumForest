@@ -226,7 +226,9 @@ class DeTree(nn.Module):
         if self.config.path_way=="TREE_map":
             self.nFeature = 2**depth-1
         self.nGateFuncs = self.num_trees*self.nFeature
-        # self.att_reponse = eca_reponse(self.num_trees)
+        if False:
+            # self.att_reponse = eca_reponse(self.num_trees)
+            self.att_input = eca_input(self.in_features)
         
         if self.config.attention_alg == "weight":
             if False and isAdptiveAlpha:      #可以试试，就是时间太长
@@ -304,6 +306,8 @@ class DeTree(nn.Module):
 
         batch_size = input.shape[0]
         nLeaf = 2 ** self.depth
+        if hasattr(self,"att_input"):
+            input = self.att_input(input)
         # new input shape: [batch_size, in_features]
         if self.no_attention:
             feature_values = input[:, self.feat_map]  # torch.index_select(input.flatten(), 0, self.feat_select)
@@ -372,7 +376,7 @@ class DeTree(nn.Module):
             
         if self.config.leaf_output == "leaf_distri":
             response = torch.einsum('btl,tcl->btc', response_weights, self.response)            # ^-- [batch_size, num_trees, distri_dim]
-            if hasattr(self,"att_reponse")
+            if hasattr(self,"att_reponse"):
                 reponse = self.att_reponse(response)
             return response.flatten(1, 2) if self.flatten_output else response
         elif self.config.leaf_output == "Y":        #有问题，如何validate?

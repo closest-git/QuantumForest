@@ -13,7 +13,7 @@ if isMORT:
     print(f"litemort={litemort.__version__}")
 import numpy as np
 import matplotlib.pyplot as plt
-import node_lib
+#import node_lib
 import quantum_forest
 import pandas as pd
 import pickle
@@ -169,10 +169,15 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     #config.mean,config.std = mean,std
     print(f"======  NODE_test \ttrain={data.X_train.shape} valid={data.X_valid.shape} YY_train_mean={data.Y_mean:.3f} YY_train_std={data.Y_std:.3f}\n")
     in_features = data.X_train.shape[1]
-    #config.tree_module = node_lib.ODST
+    config.in_features = in_features
+    #config.tree_module = ODST
     config.tree_module = quantum_forest.DeTree
+    if False:    #sklearn-like style
+        learner = quantum_forest.QuantumForest(config,data,feat_info=feat_info,visual=visual).fit(data.X_train, YY_train, eval_set=[data.X_valid,YY_valid])
+        return learner.best_mse,0
+
     Learners,last_train_prediction=[],0
-    qForest = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info,visual=visual).to(config.device)   
+    qForest = quantum_forest.QF_Net(in_features,config, feat_info=feat_info,visual=visual).to(config.device)   
     Learners.append(qForest)    
 
     if False:       # trigger data-aware init,作用不明显
@@ -215,7 +220,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     print(f"======  |YY_train|={np.linalg.norm(YY_train):.3f},mean={data.Y_mean:.3f} std={data.Y_std:.3f}")
     wLearner.AfterEpoch(isBetter=True, epoch=0)
     epoch,t0=0,time.time()
-    for batch in node_lib.iterate_minibatches(data.X_train, YY_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
+    for batch in quantum_forest.experiment.iterate_minibatch(data.X_train, YY_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
         metrics = trainer.train_on_batch(*batch, device=config.device)
         loss_history.append(metrics['loss'])
         if trainer.step%10==0:
@@ -244,7 +249,7 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
                 mse_train = dict_info["mse"]                
                 YY_train = YY_train-train_pred
                 mean,std = YY_train.mean(), YY_train.std()
-                qForest = quantum_forest.QForest_Net(in_features,config, feat_info=feat_info,visual=visual).to(config.device)   
+                qForest = quantum_forest.QF_Net(in_features,config, feat_info=feat_info,visual=visual).to(config.device)   
                 #Learners.append(qForest)
                 wLearner=qForest#Learners[-1]
                 print(f"NODE_test::Expand@{epoch} eval_train={mse_train:.2f} YY_train={np.linalg.norm(YY_train)}")
@@ -277,8 +282,6 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     trainer.save_checkpoint(tag=f'last_{mse:.6f}')
     return best_mse,mse
 
-
-
 def Fold_learning(fold_n,data,config,visual):
     t0 = time.time()
     if config.model=="QForest":
@@ -300,7 +303,7 @@ if __name__ == "__main__":
     data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
     #data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True)
     
-    config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"
+    config = quantum_forest.QForest_config(data,0.002,feat_info="attention")   #,feat_info="importance","attention"
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)
 

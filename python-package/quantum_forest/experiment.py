@@ -15,8 +15,7 @@ from tensorboardX import SummaryWriter
 
 from sklearn.metrics import roc_auc_score, log_loss
 
-def iterate_minibatches(*tensors, batch_size, shuffle=True, epochs=1,
-                        allow_incomplete=True, callback=lambda x:x):
+def iterate_minibatch(*tensors, batch_size, shuffle=True, epochs=1,allow_incomplete=True, callback=lambda x:x):
     indices = np.arange(len(tensors[0]))
     upper_bound = int((np.ceil if allow_incomplete else np.floor) (len(indices) / batch_size)) * batch_size
     epoch = 0

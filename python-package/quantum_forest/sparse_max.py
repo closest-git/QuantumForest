@@ -23,10 +23,11 @@ class excitation_max(nn.Module):
             return f"_conv{self.k_size}"
 
     class attention_fc(nn.Module):
-        def __init__(self, nInFeat, reduction=16):
+        def __init__(self, nInFeat,nGateFunc, reduction=16):
             super(excitation_max.attention_fc, self).__init__()
             self.nEmbed = max(2,nInFeat//reduction)
             self.nInFeat = nInFeat
+            self.nGateFunc = nGateFunc
             self.fc_embed = nn.Sequential(
                 nn.Linear(nInFeat, self.nEmbed, bias=False),
                 nn.ReLU(inplace=True),
@@ -52,9 +53,11 @@ class excitation_max(nn.Module):
         self.nInFeat = nInFeat
         self.nTree = nTree
         self.nGate = nGateFuncs
-        attention_net = excitation_max.attention_fc
-        self.listExcitation=nn.ModuleList( [attention_net(nInFeat) for i in range(nGateFuncs)] )
-        info = self.listExcitation[0].__repr__()
+        attention_net = excitation_max.attention_fc(nInFeat,nGateFuncs) 
+        # 理解有误，时间太长
+        # self.listExcitation=nn.ModuleList( [attention_net(nInFeat) for i in range(nGateFuncs)] )
+        # info = self.listExcitation[0].__repr__()
+        info = attention_net.__repr__()
         self.desc=f"excitation_max_[{nGateFuncs}]_\'{info}\' nInFeat={nInFeat}"
         # self.InitAlpha()
         self.__name__ = "excitation_max_NET"
