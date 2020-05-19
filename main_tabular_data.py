@@ -173,8 +173,8 @@ def NODE_test(data,fold_n,config,visual=None,feat_info=None):
     #config.tree_module = ODST
     config.tree_module = quantum_forest.DeTree
     if False:    #sklearn-like style
-        learner = quantum_forest.QuantumForest(config,data,feat_info=feat_info,visual=visual).fit(data.X_train, YY_train, eval_set=[data.X_valid,YY_valid])
-        return learner.best_mse,0
+        learner = quantum_forest.QuantumForest(config,data,feat_info=feat_info,visual=visual).fit(data.X_train, YY_train, eval_set=[(data.X_valid,YY_valid)])
+        return learner.best_score,0
 
     Learners,last_train_prediction=[],0
     qForest = quantum_forest.QF_Net(in_features,config, feat_info=feat_info,visual=visual).to(config.device)   

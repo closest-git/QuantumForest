@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from .some_utils import *
 from cnn_models import *
 from qhoptim.pyt import QHAdam
-from .experiment import Experiment
+from .experiment import *
 
 class Simple_CNN(nn.Module):
     def __init__(self, num_blocks, in_channel=3,out_channel=10):
@@ -290,6 +290,7 @@ class QuantumForest(object):
         self.best_iteration_ = 0
         self.best_iteration = 0
         self.best_score = 0
+        self.visual = visual
 
         #weight_decay的值需要反复适配       如取1.0e-6 还可以  0.61142-0.58948
         self.optimizer=QHAdam;           
@@ -311,6 +312,7 @@ class QuantumForest(object):
         )   
         config.trainer = self.trainer        
         self.trainer.SetLearner(wLearner)
+        print(f"====== QuantumForest__init__ config={config}\n")
 
     def __del__(self):
         try:
@@ -329,7 +331,9 @@ class QuantumForest(object):
         '''
         return
     
-    def fit(self,X_train_0, y_train,eval_set=None,categorical_feature=None,discrete_feature=None, params=None,flag=0x0):
+    def fit(self,X_train_0, y_train,eval_set,categorical_feature=None,discrete_feature=None, params=None,flag=0x0):
+        assert len(eval_set)==1
+        X_eval_0,y_valid = eval_set[0]
         config = self.config
         print("====== QuantumForest_fit X_train_0={} y_train={}......".format(X_train_0.shape, y_train.shape))
         gc.collect()
@@ -343,8 +347,6 @@ class QuantumForest(object):
             with torch.no_grad():
                 res = qForest(torch.as_tensor(data.X_train[:1000], device=config.device))
         #if torch.cuda.device_count() > 1:        model = nn.DataParallel(model)
-
-
 
         loss_history, mse_history = [], []
         best_mse = float('inf')
@@ -373,7 +375,7 @@ class QuantumForest(object):
             if trainer.step % report_frequency == 0:
                 epoch=epoch+1
                 if torch.cuda.is_available():   torch.cuda.empty_cache()
-                mse = trainer.AfterEpoch(epoch,data.X_valid,YY_valid,best_mse)            
+                mse = trainer.AfterEpoch(epoch,data.X_valid,y_valid,best_mse)            
                 if mse < best_mse:
                     best_mse = mse
                     best_step_mse = trainer.step
@@ -382,8 +384,10 @@ class QuantumForest(object):
                 if config.average_training:
                     trainer.load_checkpoint()  # last
                     trainer.remove_old_temp_checkpoints()
-                VisualAfterEpoch(epoch,visual,config,mse)      
-
+                if self.visual is not None:
+                    self.visual.UpdateLoss(title=f"Accuracy on \"{data.name}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
+                # VisualAfterEpoch(epoch,visual,config,mse)      
+                # break
             if trainer.step>50000:
                 break
             if trainer.step > best_step_mse + early_stopping_rounds:
@@ -393,20 +397,8 @@ class QuantumForest(object):
                 break
         
         if data.X_test is not None:
-            mse = trainer.AfterEpoch(epoch,data.X_test, YY_test,best_mse,isTest=True) 
-            if False:
-                if torch.cuda.is_available():  torch.cuda.empty_cache()
-                trainer.load_checkpoint(tag='best_mse')
-                t0=time.time()
-                dict_info,prediction = trainer.evaluate_mse(data.X_test, YY_test, device=config.device, batch_size=config.eval_batch_size)
-                if config.cascade_LR:
-                    prediction=LinearRgressor.AfterPredict(data.X_test,prediction)
-                #prediction = prediction*data.accu_scale+data.Y_mu_0
-                prediction = data.Y_trans(prediction)
-                mse = ((data.y_test - prediction) ** 2).mean()
-                #mse = dict_info["mse"]
-                reg_Gate = dict_info["reg_Gate"]
-                print(f'====== Best step: {trainer.step} test={data.X_test.shape} ACCU@Test={mse:.5f} \treg_Gate:{reg_Gate:.4g}time={time.time()-t0:.2f}' )
+            YY_test = data.y_test
+            mse = trainer.AfterEpoch(epoch,data.X_test, YY_test,best_mse,isTest=True)             
             best_mse = mse
         trainer.save_checkpoint(tag=f'last_{mse:.6f}')
         self.best_score = best_mse        # return best_mse,mse

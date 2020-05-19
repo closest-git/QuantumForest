@@ -19,7 +19,7 @@ from main_tabular_data import *
 import argparse 
 import glob
 from io import StringIO
-import pandas_profiling
+#import pandas_profiling
 
 class PML_dataset(quantum_forest.TabularDataset):
     def file2key(self,file):
@@ -93,7 +93,8 @@ class PML_dataset(quantum_forest.TabularDataset):
             #    continue
             with open(file, 'r') as file :
                 filedata = file.read()           
-            filedata = StringIO(filedata.replace('E', 'e'))     #真麻烦
+            #filedata = StringIO(filedata.replace('E', 'e'))     #真麻烦
+            filedata = StringIO(filedata.replace('D', 'e'))     #真麻烦
             #print(filedata)
             df = pd.read_csv(filedata,header = None,dtype=np.float)    
             columns = df.columns
@@ -174,8 +175,8 @@ if __name__ == "__main__":
 
     data_paths = [
             #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
-            #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型右边的全部离散P点/",
-            "E:/xiada/FengNX/2028组/模型右边的全部离散P点/",
+            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型右边的全部离散P点/",
+            #"E:/xiada/FengNX/2028组/模型右边的全部离散P点/",
             #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型下边的全部离散P点/",
             #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型左边的全部离散P点/",
         ]
@@ -210,5 +211,13 @@ if __name__ == "__main__":
         print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
 
         data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{data_root}{dataset}/FOLD_{fold_n}.pickle")
-        Fold_learning(fold_n,data,config,visual)
+        data.Y_mean,data.Y_std = data.y_train.mean(), data.y_train.std()
+        if False:
+            Fold_learning(fold_n,data,config,visual)
+        else:     
+            config.in_features = data.X_train.shape[1]
+            config.tree_module = quantum_forest.DeTree       
+            learner = quantum_forest.QuantumForest(config,data,feat_info=None,visual=visual).   \
+                fit(data.X_train, data.y_train, eval_set=[(data.X_valid,data.y_valid)])
+            best_score = learner.best_score,0
         break
