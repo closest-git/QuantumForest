@@ -83,7 +83,7 @@ class TabularDataset:
         return listX,power
 
     #确实有用，需要进一步分析
-    def quantile_trans_(self, random_state, X_samp, listX, distri='normal', noise=0):
+    def quantile_trans_(self, random_state, X_samp, listX, distri='normal', noise=0,dtype=np.float32):
         quantile_train = np.copy(X_samp)
         if noise:
             stds = np.std(quantile_train, axis=0, keepdims=True)
@@ -95,7 +95,7 @@ class TabularDataset:
         for i,X_ in enumerate(listX):
             if X_ is None:
                 continue
-            listX[i] = qt.transform(X_)
+            listX[i] = qt.transform(X_).astype(dtype)
         return listX,qt
 
     def OnFeatInfo(self,feat_info,weight_1):

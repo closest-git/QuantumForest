@@ -31,22 +31,6 @@ dataset = "CLICK"
 #dataset = "HIGGS"
 
 
-def InitExperiment(config,fold_n):
-    config.experiment = f'{config.data_set}_{config.model_info()}_{fold_n}'   #'year_node_shallow'
-    #experiment = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment, *time.gmtime()[:5])
-    #visual = quantum_forest.Visdom_Visualizer(env_title=config.experiment)
-    visual = quantum_forest.Visualize(env_title=config.experiment)
-    visual.img_dir = "./results/images/"
-    print("experiment:", config.experiment)
-    log_path=f"logs/{config.experiment}"
-    if os.path.exists(log_path):        #so strange!!!
-        import shutil
-        print(f'experiment {config.experiment} already exists, DELETE it!!!')
-        shutil.rmtree(log_path)
-    return config,visual
-
-
-
 def GBDT_test(data,fold_n,num_rounds = 100000,bf=1,ff=1):
     model_type = "mort" if isMORT else "lgb"
     nFeatures = data.X_train.shape[1]
@@ -309,7 +293,7 @@ if __name__ == "__main__":
 
     config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"    
     if dataset=="YAHOO" or dataset=="MICROSOFT" or dataset=="CLICK" or dataset=="HIGGS":
-        config,visual = InitExperiment(config, 0)
+        config,visual = quantum_forest.InitExperiment(config, 0)
         data.onFold(0,config,pkl_path=f"{data_root}{dataset}/FOLD_Quantile_.pickle")
         Fold_learning(0,data, config,visual)
     else:

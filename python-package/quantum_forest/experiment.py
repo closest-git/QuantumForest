@@ -85,14 +85,21 @@ class Experiment(nn.Module):
             experiment_name = 'untitled_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(*time.gmtime()[:5])
             if self.verbose:
                 print('using automatic experiment name: ' + experiment_name)
-
+        
         if True:
             self.experiment_path = os.path.join('logs/', experiment_name)
             if not warm_start and experiment_name != 'debug':
+                if os.path.exists(self.experiment_path):        #为了批处理
+                    import shutil
+                    print(f'experiment {config.experiment} already exists, DELETE it!!!')
+                    shutil.rmtree(self.experiment_path)
                 assert not os.path.exists(self.experiment_path), 'experiment {} already exists'.format(experiment_name)
         else:
             self.experiment_path = os.path.join('logs/', "cys")
-        self.writer = SummaryWriter(self.experiment_path, comment=experiment_name)
+        if hasattr(config,"no_inner_writer"):
+            self.writer = None
+        else:
+            self.writer = SummaryWriter(self.experiment_path, comment=experiment_name)
 
         if warm_start:
             self.load_checkpoint()
@@ -239,7 +246,7 @@ class Experiment(nn.Module):
         self.opt.step()
         self.step += 1
         self.y_batch = None
-        self.writer.add_scalar('train loss', loss.item(), self.step)
+        if self.writer is not None:     self.writer.add_scalar('train loss', loss.item(), self.step)
         self.metrics = {'loss': loss.item()}
         del loss       
         #if self.feature_fraction<1:self.select_some_feats(isDump=False)

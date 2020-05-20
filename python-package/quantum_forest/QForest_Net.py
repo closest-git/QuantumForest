@@ -17,6 +17,7 @@ from .some_utils import *
 from cnn_models import *
 from qhoptim.pyt import QHAdam
 from .experiment import *
+from .Visualizing import *
 
 class Simple_CNN(nn.Module):
     def __init__(self, num_blocks, in_channel=3,out_channel=10):
@@ -261,9 +262,10 @@ class QF_Net(nn.Module):
                 params = {'title':f"{epoch} - {accu:.4f}",'cmap':sns.cm.rocket}
                 self.visual.image(path,attention[:,cols],params=params)
             else:
-                plt.imshow(attention[:,cols])
-                plt.grid(b=None)
-                plt.show()
+                pass
+                # plt.imshow(attention[:,cols])
+                # plt.grid(b=None)
+                # plt.show()
         return
     
     def freeze_some_params(self,freeze_info):
@@ -308,7 +310,7 @@ class QuantumForest(object):
             warm_start=False,   
             Optimizer=self.optimizer,        optimizer_params=self.optimizer_params,
             verbose=True,      #True
-            n_last_checkpoints=5
+            n_last_checkpoints=5,
         )   
         config.trainer = self.trainer        
         self.trainer.SetLearner(wLearner)
@@ -331,7 +333,7 @@ class QuantumForest(object):
         '''
         return
     
-    def fit(self,X_train_0, y_train,eval_set,categorical_feature=None,discrete_feature=None, params=None,flag=0x0):
+    def fit(self,X_train_0, y_train,eval_set,categorical_feature=None,discrete_feature=None, flags={'report_frequency':1000}):
         assert len(eval_set)==1
         X_eval_0,y_valid = eval_set[0]
         config = self.config
@@ -352,8 +354,7 @@ class QuantumForest(object):
         best_mse = float('inf')
         best_step_mse = 0
         early_stopping_rounds = 3000
-        report_frequency = 1000
-        #report_frequency = 10
+        report_frequency = flags['report_frequency']
         trainer = self.trainer
         data = self.trainer.data
         wLearner=self.Learners[-1]        
@@ -361,7 +362,7 @@ class QuantumForest(object):
         print(f"======  trainer.learner={trainer.model}\ntrainer.opt={trainer.opt}"\
             f"\n======  config={config.__dict__}")
         print(f"======  X_train={data.X_train.shape},YY_train={y_train.shape}")
-        print(f"======  |YY_train|={np.linalg.norm(y_train):.3f},mean={data.Y_mean:.3f} std={data.Y_std:.3f}")
+        print(f"======  |YY_train|={np.linalg.norm(y_train):.3f},mean={y_train.mean():.3f} std={y_train.std():.3f}")
         wLearner.AfterEpoch(isBetter=True, epoch=0)
         epoch,t0=0,time.time()
         for batch in iterate_minibatch(data.X_train, y_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
@@ -374,6 +375,7 @@ class QuantumForest(object):
                 ,end="")
             if trainer.step % report_frequency == 0:
                 epoch=epoch+1
+                
                 if torch.cuda.is_available():   torch.cuda.empty_cache()
                 mse = trainer.AfterEpoch(epoch,data.X_valid,y_valid,best_mse)            
                 if mse < best_mse:
@@ -386,8 +388,11 @@ class QuantumForest(object):
                     trainer.remove_old_temp_checkpoints()
                 if self.visual is not None:
                     self.visual.UpdateLoss(title=f"Accuracy on \"{data.name}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
-                # VisualAfterEpoch(epoch,visual,config,mse)      
-                # break
+                print(f"Time: [{time.time()-t0:.6f}]	[{epoch}]	valid_0's rmse: {mse}")   #为了和其它库的epoch输出一致
+                # VisualAfterEpoch(epoch,visual,config,mse)  
+                if "test_once" in flags:
+                    break    
+
             if trainer.step>50000:
                 break
             if trainer.step > best_step_mse + early_stopping_rounds:
@@ -395,6 +400,7 @@ class QuantumForest(object):
                 print("Best step: ", best_step_mse)
                 print(f"Best Val MSE: {best_mse:.5f}")            
                 break
+            
         
         if data.X_test is not None:
             YY_test = data.y_test
@@ -427,3 +433,17 @@ class QuantumForest(object):
         Y_ = self.problem.OnResult(Y_,pred_leaf,pred_contrib,raw_score)
         return Y_
 
+
+def InitExperiment(config,fold_n):
+    config.experiment = f'{config.data_set}_{config.model_info()}_{fold_n}'   #'year_node_shallow'
+    #experiment = '{}_{}.{:0>2d}.{:0>2d}_{:0>2d}_{:0>2d}'.format(experiment, *time.gmtime()[:5])
+    #visual = quantum_forest.Visdom_Visualizer(env_title=config.experiment)
+    visual = Visualize(env_title=config.experiment)
+    visual.img_dir = "./results/images/"
+    print("experiment:", config.experiment)
+    log_path=f"logs/{config.experiment}"
+    if os.path.exists(log_path):        #so strange!!!
+        import shutil
+        print(f'experiment {config.experiment} already exists, DELETE it!!!')
+        shutil.rmtree(log_path)
+    return config,visual

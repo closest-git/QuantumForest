@@ -196,7 +196,7 @@ if __name__ == "__main__":
     for fold_n, (train_index, valid_index) in enumerate(folds.split(data.X)):
         index_sets.append(valid_index)
     for fold_n in range(len(index_sets)):
-        config, visual = InitExperiment(config, fold_n)
+        config, visual =  quantum_forest.InitExperiment(config, fold_n)
         config.response_dim = 3
         config.feat_info = None
         train_list=[]
