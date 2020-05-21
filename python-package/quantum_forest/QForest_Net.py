@@ -351,9 +351,10 @@ class QuantumForest(object):
         #if torch.cuda.device_count() > 1:        model = nn.DataParallel(model)
 
         loss_history, mse_history = [], []
-        best_mse = float('inf')
+        best_mse,best_epoch_ = float('inf'),float('inf')
         best_step_mse = 0
         early_stopping_rounds = 3000
+        early_stopping_epochs = 2
         report_frequency = flags['report_frequency']
         trainer = self.trainer
         data = self.trainer.data
@@ -365,40 +366,37 @@ class QuantumForest(object):
         print(f"======  |YY_train|={np.linalg.norm(y_train):.3f},mean={y_train.mean():.3f} std={y_train.std():.3f}")
         wLearner.AfterEpoch(isBetter=True, epoch=0)
         epoch,t0=0,time.time()
-        for batch in iterate_minibatch(data.X_train, y_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
-            metrics = trainer.train_on_batch(*batch, device=config.device)
-            loss_history.append(metrics['loss'])
-            if trainer.step%10==0:
-                symbol = "^" if config.cascade_LR else ""
-                print(f"\r============ {trainer.step}{symbol}\t{metrics['loss']:.5f}\tL1=[{wLearner.reg_L1:.4g}*{config.reg_L1}]"
-                f"\tL2=[{wLearner.L_gate:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
-                ,end="")
-            if trainer.step % report_frequency == 0:
-                epoch=epoch+1
+        nBatch = data.__len__()//config.batch_size
+        for epoch in range(config.nMostEpochs):   
+            # for batch in iterate_minibatch(data.X_train, y_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
+            for batch in data.yield_batch(config.batch_size,shuffle=True, epochs=float('inf')):
+                metrics = trainer.train_on_batch(*batch, device=config.device)                            
+                loss_history.append(metrics['loss'])
+                if trainer.step%10==0:
+                    symbol = "^" if config.cascade_LR else ""
+                    print(f"\r============ {trainer.step-epoch*nBatch}{symbol}/{nBatch}\t{metrics['loss']:.5f}\tL1=[{wLearner.reg_L1:.4g}*{config.reg_L1}]"
+                    f"\tL2=[{wLearner.L_gate:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
+                    ,end="")
                 
-                if torch.cuda.is_available():   torch.cuda.empty_cache()
-                mse = trainer.AfterEpoch(epoch,data.X_valid,y_valid,best_mse)            
-                if mse < best_mse:
-                    best_mse = mse
-                    best_step_mse = trainer.step
-                    trainer.save_checkpoint(tag='best_mse')
-                mse_history.append(mse)
-                if config.average_training:
-                    trainer.load_checkpoint()  # last
-                    trainer.remove_old_temp_checkpoints()
-                if self.visual is not None:
-                    self.visual.UpdateLoss(title=f"Accuracy on \"{data.name}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
-                print(f"Time: [{time.time()-t0:.6f}]	[{epoch}]	valid_0's rmse: {mse}")   #为了和其它库的epoch输出一致
-                # VisualAfterEpoch(epoch,visual,config,mse)  
-                if "test_once" in flags:
-                    break    
+            if torch.cuda.is_available():   torch.cuda.empty_cache()
+            mse = trainer.AfterEpoch(epoch,data.X_valid,y_valid,best_mse)            
+            if mse < best_mse:
+                best_mse,best_epoch_ = mse,epoch
+                trainer.save_checkpoint(tag='best_mse')
+            mse_history.append(mse)
+            if config.average_training:
+                trainer.load_checkpoint()  # last
+                trainer.remove_old_temp_checkpoints()
+            if self.visual is not None:
+                self.visual.UpdateLoss(title=f"Accuracy on \"{data.name}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
+            print(f"Time: [{time.time()-t0:.6f}]	[{epoch}]	valid_0's rmse: {mse}")   #为了和其它库的epoch输出一致
+            # VisualAfterEpoch(epoch,visual,config,mse)  
+            if "test_once" in flags:
+                break    
 
-            if trainer.step>50000:
-                break
-            if trainer.step > best_step_mse + early_stopping_rounds:
+            if epoch > best_epoch_ + early_stopping_epochs:
                 print('BREAK. There is no improvment for {} steps'.format(early_stopping_rounds))
-                print("Best step: ", best_step_mse)
-                print(f"Best Val MSE: {best_mse:.5f}")            
+                print(f"\tBest epoch: {best_epoch_} Best Val MSE: {best_mse:.5f}" )                  
                 break
             
         

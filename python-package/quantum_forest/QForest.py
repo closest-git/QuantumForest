@@ -46,6 +46,7 @@ class QForest_config:
         self.task = "train"
         self.attention_alg = "weight"       #
 
+        self.nMostEpochs = 1000
         self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 256, 8, 1
 
         if data_set=="YEAR":

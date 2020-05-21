@@ -233,6 +233,8 @@ class TabularDataset:
         random.seed(random_state)
         self.random_state = random_state
         self.quantile_noise = quantile_noise
+        self.isTrain = True
+        self.isSample = False
         if dataset in DATASETS:
             data_dict = DATASETS[dataset](os.path.join(data_path, dataset), **kwargs)
         else:
@@ -279,6 +281,34 @@ class TabularDataset:
         np.savetxt(os.path.join(path, 'y_train.csv'), self.y_train, delimiter=',')
         np.savetxt(os.path.join(path, 'y_valid.csv'), self.y_valid, delimiter=',')
         np.savetxt(os.path.join(path, 'y_test.csv'), self.y_test, delimiter=',')
+    
+    def __len__(self):
+        if self.isTrain:
+            return self.X_train.shape[0]
+        else:
+            return self.X_valid.shape[0]
+
+    def yield_batch(self,batch_size, shuffle=True, epochs=1,allow_incomplete=True, callback=lambda x:x):
+        
+        if self.isTrain:
+            tensors=[self.X_train,self.y_train]
+        else:
+            tensors=[self.X_valid,self.y_valid]
+        nSamp = len(tensors[0])        
+        assert nSamp == len(tensors[1])
+        indices = np.arange(nSamp)
+        upper_bound = int((np.ceil if allow_incomplete else np.floor) (len(indices) / batch_size)) * batch_size
+        epoch = 0
+
+        if shuffle:
+            np.random.shuffle(indices)
+            print(f"\t>>>>>>>> yield_batch nSamp={nSamp} shuffle={indices[0:10]}")
+        for batch_start in callback(range(0, upper_bound, batch_size)):                
+            batch_ix = indices[batch_start: batch_start + batch_size]
+            #print(f"\t\ryield_batch@{batch_start} {batch_ix[0:5]}",end="")
+            batch = [tensor[batch_ix] for tensor in tensors]
+            yield batch if len(tensors) > 1 else batch[0]
+           
 
 
 def fetch_A9A(path, train_size=None, valid_size=None, test_size=None):
