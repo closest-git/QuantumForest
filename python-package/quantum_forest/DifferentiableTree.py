@@ -227,8 +227,8 @@ class DeTree(nn.Module):
             self.nFeature = 2**depth-1
         self.nGateFuncs = self.num_trees*self.nFeature
         if False:
-            # self.att_reponse = eca_reponse(self.num_trees)
-            self.att_input = eca_input(self.in_features)
+            self.att_reponse = eca_reponse(self.num_trees)
+            #self.att_input = eca_input(self.in_features)
         
         if self.config.attention_alg == "weight":
             if False and isAdptiveAlpha:      #可以试试，就是时间太长

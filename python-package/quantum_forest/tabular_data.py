@@ -355,7 +355,6 @@ def fetch_A9A(path, train_size=None, valid_size=None, test_size=None):
         X_test=X_test, y_test=y_test
     )
 
-
 def fetch_EPSILON(path, train_size=None, valid_size=None, test_size=None):
     train_path = os.path.join(path, 'epsilon_normalized')
     test_path = os.path.join(path, 'epsilon_normalized.t')
@@ -363,6 +362,7 @@ def fetch_EPSILON(path, train_size=None, valid_size=None, test_size=None):
         os.makedirs(path, exist_ok=True)
         train_archive_path = os.path.join(path, 'epsilon_normalized.bz2')
         test_archive_path = os.path.join(path, 'epsilon_normalized.t.bz2')
+        print(f"fetch_EPSILON need files!!!\n\t{train_archive_path}\n\t{test_archive_path}\n")
         if not all(os.path.exists(fname) for fname in (train_archive_path, test_archive_path)):
             download("https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/epsilon_normalized.bz2", train_archive_path)
             download("https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/epsilon_normalized.t.bz2", test_archive_path)
@@ -635,6 +635,7 @@ def fetch_YAHOO(path):
             train_archive_path = os.path.join(path, 'yahoo_train.tsv.gz')
             valid_archive_path = os.path.join(path, 'yahoo_valid.tsv.gz')
             test_archive_path = os.path.join(path, 'yahoo_test.tsv.gz')
+            print(f"fetch_YAHOO need files!!!\n\t{train_archive_path}\n\t{valid_archive_path}\n\t{test_archive_path}\n")
             if not all(os.path.exists(fname) for fname in (train_archive_path, valid_archive_path, test_archive_path)):
                 download("https://www.dropbox.com/s/7rq3ki5vtxm6gzx/yahoo_set_1_train.gz?dl=1", train_archive_path)
                 download("https://www.dropbox.com/s/3ai8rxm1v0l5sd1/yahoo_set_1_validation.gz?dl=1", valid_archive_path)

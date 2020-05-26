@@ -19,6 +19,7 @@ import pandas as pd
 import pickle
 import torch, torch.nn as nn
 import torch.nn.functional as F
+import argparse
 import lightgbm as lgb
 from sklearn.model_selection import KFold
 from qhoptim.pyt import QHAdam
@@ -31,12 +32,12 @@ dataset = "CLICK"
 #dataset = "HIGGS"
 
 
-def GBDT_test(data,fold_n,num_rounds = 100000,bf=1,ff=1):
+def GBDT_test(config,data,fold_n,num_rounds = 100000,bf=1,ff=1):
     model_type = "mort" if isMORT else "lgb"
     nFeatures = data.X_train.shape[1]
     early_stop = 100;    verbose_eval = 20
     
-    #lr = 0.01;   
+    #lr = config.lr_base;   
     bf = bf;    ff = ff
 
     if data.problem()=="classification":
@@ -275,7 +276,7 @@ def Fold_learning(fold_n,data,config,visual):
             feat_info = None
         accu,_ = NODE_test(data,fold_n,config,visual,feat_info)
     elif config.model=="GBDT":
-        accu,_ = GBDT_test(data,fold_n)
+        accu,_ = GBDT_test(config,data,fold_n)
     else:        #"LinearRegressor"    
         model = quantum_forest.Linear_Regressor({'cascade':"ridge"})
         accu,_ = model.fit((data.X_train, data.y_train),[(data.X_test, data.y_test)])
@@ -284,17 +285,26 @@ def Fold_learning(fold_n,data,config,visual):
     return
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    # parser.add_argument('--use-gpu', action='store_true')
+    parser.add_argument('--datasets', default='CLICK')
+    parser.add_argument('--iterations', default=1000, type=int)
+    parser.add_argument('--model', default="QForest")
+    parser.add_argument('--learning_rate', default="0.01", type=float)
+    args = parser.parse_args()
+
     data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
     #data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True)
     
     config = quantum_forest.QForest_config(data,0.002,feat_info="attention")   #,feat_info="importance","attention"
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)
+    config.model=args.model      #"QForest"            "GBDT" "LinearRegressor"    
+    config.lr_base = args.learning_rate
 
-    config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"    
     if dataset=="YAHOO" or dataset=="MICROSOFT" or dataset=="CLICK" or dataset=="HIGGS":
         config,visual = quantum_forest.InitExperiment(config, 0)
-        data.onFold(0,config,pkl_path=f"{data_root}{dataset}/FOLD_Quantile_.pickle")
+        #data.onFold(0,config,pkl_path=f"{data_root}{dataset}/FOLD_Quantile_.pickle")
         Fold_learning(0,data, config,visual)
     else:
         nFold = 5 if dataset != "HIGGS" else 20
