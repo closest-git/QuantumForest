@@ -24,12 +24,7 @@ import lightgbm as lgb
 from sklearn.model_selection import KFold
 from qhoptim.pyt import QHAdam
 #You should set the path of each dataset!!!
-data_root = "F:/Datasets/"
-#dataset = "MICROSOFT"
-#dataset = "YAHOO"
-#dataset = "YEAR"
-dataset = "CLICK"
-#dataset = "HIGGS"
+# data_root = "F:/Datasets/"
 
 
 def GBDT_test(config,data,fold_n,num_rounds = 100000,bf=1,ff=1):
@@ -71,12 +66,12 @@ def GBDT_test(config,data,fold_n,num_rounds = 100000,bf=1,ff=1):
             model = lgb.LGBMClassifier(**params)
         else:
             model = lgb.LGBMRegressor(**params)
-        model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=min(num_rounds//10,1000))
+        model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=min(num_rounds//10,100))
         pred_val = model.predict(data.X_test)
         #plot_importance(model)
         lgb.plot_importance(model, max_num_features=32)
         plt.title("Featurertances")
-        plt.savefig(f"./results/{dataset}_feat_importance_.jpg")
+        plt.savefig(f"./results/{config.dataset}_feat_importance_.jpg")
         #plt.show(block=False)
         plt.close()
 
@@ -84,7 +79,7 @@ def GBDT_test(config,data,fold_n,num_rounds = 100000,bf=1,ff=1):
         fold_importance["importance"] = model.feature_importances_
         fold_importance["feature"] = [i for i in range(nFeatures)]
         fold_importance["fold"] = fold_n
-        #fold_importance.to_pickle(f"./results/{dataset}_feat_{fold_n}.pickle")
+        #fold_importance.to_pickle(f"./results/{config.dataset}_feat_{fold_n}.pickle")
         print('best_score', model.best_score_)
         acc_train,acc_=model.best_score_['training'][metric], model.best_score_['valid_1'][metric]
     if data.X_test is not None:
@@ -99,8 +94,8 @@ def GBDT_test(config,data,fold_n,num_rounds = 100000,bf=1,ff=1):
         print(f'====== Best step: test={data.X_test.shape} ACCU@Test={acc_:.5f}')
     return acc_,fold_importance
 
-def get_feature_info(data,fold_n):
-    pkl_path = f"./results/{dataset}_feat_info_.pickle"
+def get_feature_info(config,data,fold_n):
+    pkl_path = f"./results/{config.dataset}_feat_info_.pickle"
     nSamp,nFeat = data.X_train.shape[0],data.X_train.shape[1]
     if os.path.isfile(pkl_path):
         feat_info = pd.read_pickle(pkl_path)
@@ -144,7 +139,7 @@ def VisualAfterEpoch(epoch,visual,config,mse):
             plt.grid()
             plt.show()
     else:
-        visual.UpdateLoss(title=f"Accuracy on \"{dataset}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
+        visual.UpdateLoss(title=f"Accuracy on \"{config.dataset}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
 
 
 def NODE_test(data,fold_n,config,visual=None,feat_info=None):
@@ -287,13 +282,14 @@ def Fold_learning(fold_n,data,config,visual):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # parser.add_argument('--use-gpu', action='store_true')
-    parser.add_argument('--datasets', default='CLICK')
+    parser.add_argument('--data_root',required=True)
+    parser.add_argument('--dataset', default='CLICK',help="MICROSOFT,YAHOO,YEAR,CLICK,HIGGS")
     parser.add_argument('--iterations', default=1000, type=int)
-    parser.add_argument('--model', default="QForest")
+    parser.add_argument('--model', default="QForest", help='QForest,GBDT,LinearRegressor')
     parser.add_argument('--learning_rate', default="0.01", type=float)
     args = parser.parse_args()
-
-    data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
+    dataset = args.dataset
+    data = quantum_forest.TabularDataset(dataset,data_path=args.data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
     #data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True)
     
     config = quantum_forest.QForest_config(data,0.002,feat_info="attention")   #,feat_info="importance","attention"
@@ -301,8 +297,9 @@ if __name__ == "__main__":
     config.device = quantum_forest.OnInitInstance(random_state)
     config.model=args.model      #"QForest"            "GBDT" "LinearRegressor"    
     config.lr_base = args.learning_rate
+    config.dataset = args.dataset
 
-    if dataset=="YAHOO" or dataset=="MICROSOFT" or dataset=="CLICK" or dataset=="HIGGS":
+    if dataset=="YAHOO" or dataset=="MICROSOFT" or dataset=="CLICK" or dataset=="HIGGS" or dataset=="EPSILON":
         config,visual = quantum_forest.InitExperiment(config, 0)
         #data.onFold(0,config,pkl_path=f"{data_root}{dataset}/FOLD_Quantile_.pickle")
         Fold_learning(0,data, config,visual)

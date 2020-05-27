@@ -202,7 +202,7 @@ class Experiment(nn.Module):
             loss = F.cross_entropy(y_output,y_batch.long())
         else:
             assert y_output.shape==y_batch.shape
-            loss = F.mse_loss(y_output, y_batch)
+            loss = F.mse_loss(y_output, y_batch.float())
         loss = loss.mean()
         
         #loss = self.model.reg_L1*self.model.config.reg_L1

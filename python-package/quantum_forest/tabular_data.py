@@ -356,58 +356,74 @@ def fetch_A9A(path, train_size=None, valid_size=None, test_size=None):
     )
 
 def fetch_EPSILON(path, train_size=None, valid_size=None, test_size=None):
-    train_path = os.path.join(path, 'epsilon_normalized')
-    test_path = os.path.join(path, 'epsilon_normalized.t')
-    if not all(os.path.exists(fname) for fname in (train_path, test_path)):
-        os.makedirs(path, exist_ok=True)
-        train_archive_path = os.path.join(path, 'epsilon_normalized.bz2')
-        test_archive_path = os.path.join(path, 'epsilon_normalized.t.bz2')
-        print(f"fetch_EPSILON need files!!!\n\t{train_archive_path}\n\t{test_archive_path}\n")
-        if not all(os.path.exists(fname) for fname in (train_archive_path, test_archive_path)):
-            download("https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/epsilon_normalized.bz2", train_archive_path)
-            download("https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/epsilon_normalized.t.bz2", test_archive_path)
-        print("unpacking dataset")
-        for file_name, archive_name in zip((train_path, test_path), (train_archive_path, test_archive_path)):
-            zipfile = bz2.BZ2File(archive_name)
-            with open(file_name, 'wb') as f:
-                f.write(zipfile.read())
-
-    print("reading dataset (it may take a long time)")
-    X_train, y_train = load_svmlight_file(train_path, dtype=np.float32, n_features=2000)
-    X_test, y_test = load_svmlight_file(test_path, dtype=np.float32, n_features=2000)
-    X_train, X_test = X_train.toarray(), X_test.toarray()
-    y_train, y_test = y_train.astype(np.int), y_test.astype(np.int)
-    y_train[y_train == -1] = 0
-    y_test[y_test == -1] = 0
-
-    if all(sizes is None for sizes in (train_size, valid_size, test_size)):
-        train_idx_path = os.path.join(path, 'stratified_train_idx.txt')
-        valid_idx_path = os.path.join(path, 'stratified_valid_idx.txt')
-        if not all(os.path.exists(fname) for fname in (train_idx_path, valid_idx_path)):
-            download("https://www.dropbox.com/s/wxgm94gvm6d3xn5/stratified_train_idx.txt?dl=1", train_idx_path)
-            download("https://www.dropbox.com/s/fm4llo5uucdglti/stratified_valid_idx.txt?dl=1", valid_idx_path)
-        train_idx = pd.read_csv(train_idx_path, header=None)[0].values
-        valid_idx = pd.read_csv(valid_idx_path, header=None)[0].values
+    pkl_path = f'{path}/EPSILON_set_1_.pickle'
+    if os.path.isfile(pkl_path):
+        print("====== fetch_EPSILON@{} ......".format(pkl_path))
+        with open(pkl_path, "rb") as fp:
+            data_dict = pickle.load(fp)
+        #print(f"====== fetch_HIGGS:\tX_={data_dict['X'].shape}\tY={data_dict['Y'].shape}")
     else:
-        assert train_size, "please provide either train_size or none of sizes"
-        if valid_size is None:
-            valid_size = len(X_train) - train_size
-            assert valid_size > 0
-        if train_size + valid_size > len(X_train):
-            warnings.warn('train_size + valid_size = {} exceeds dataset size: {}.'.format(
-                train_size + valid_size, len(X_train)), Warning)
-        if test_size is not None:
-            warnings.warn('Test set is fixed for this dataset.', Warning)
+        train_path = os.path.join(path, 'epsilon_normalized')
+        test_path = os.path.join(path, 'epsilon_normalized.t')
+        if not all(os.path.exists(fname) for fname in (train_path, test_path)):
+            os.makedirs(path, exist_ok=True)
+            train_archive_path = os.path.join(path, 'epsilon_normalized.bz2')
+            test_archive_path = os.path.join(path, 'epsilon_normalized.t.bz2')
+            print(f"fetch_EPSILON need files!!!\n\t{train_archive_path}\n\t{test_archive_path}\n")
+            if not all(os.path.exists(fname) for fname in (train_archive_path, test_archive_path)):
+                download("https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/epsilon_normalized.bz2", train_archive_path)
+                download("https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/epsilon_normalized.t.bz2", test_archive_path)
+            print("unpacking dataset")
+            for file_name, archive_name in zip((train_path, test_path), (train_archive_path, test_archive_path)):
+                zipfile = bz2.BZ2File(archive_name)
+                with open(file_name, 'wb') as f:
+                    f.write(zipfile.read())
 
-        shuffled_indices = np.random.permutation(np.arange(len(X_train)))
-        train_idx = shuffled_indices[:train_size]
-        valid_idx = shuffled_indices[train_size: train_size + valid_size]
+        print("reading dataset (it may take a long time)")
+        X_train, y_train = load_svmlight_file(train_path, dtype=np.float32, n_features=2000)
+        X_test, y_test = load_svmlight_file(test_path, dtype=np.float32, n_features=2000)
+        X_train, X_test = X_train.toarray(), X_test.toarray()
+        y_train, y_test = y_train.astype(np.int), y_test.astype(np.int)
+        y_train[y_train == -1] = 0
+        y_test[y_test == -1] = 0
+        num_features = X_train.shape[1]
+        num_classes = len(set(y_train))
 
-    return dict(
-        X_train=X_train[train_idx], y_train=y_train[train_idx],
-        X_valid=X_train[valid_idx], y_valid=y_train[valid_idx],
-        X_test=X_test, y_test=y_test
-    )
+        if all(sizes is None for sizes in (train_size, valid_size, test_size)):
+            train_idx_path = os.path.join(path, 'stratified_train_idx.txt')
+            valid_idx_path = os.path.join(path, 'stratified_valid_idx.txt')
+            if not all(os.path.exists(fname) for fname in (train_idx_path, valid_idx_path)):
+                download("https://www.dropbox.com/s/wxgm94gvm6d3xn5/stratified_train_idx.txt?dl=1", train_idx_path)
+                download("https://www.dropbox.com/s/fm4llo5uucdglti/stratified_valid_idx.txt?dl=1", valid_idx_path)
+            train_idx = pd.read_csv(train_idx_path, header=None)[0].values
+            valid_idx = pd.read_csv(valid_idx_path, header=None)[0].values
+        else:
+            assert train_size, "please provide either train_size or none of sizes"
+            if valid_size is None:
+                valid_size = len(X_train) - train_size
+                assert valid_size > 0
+            if train_size + valid_size > len(X_train):
+                warnings.warn('train_size + valid_size = {} exceeds dataset size: {}.'.format(
+                    train_size + valid_size, len(X_train)), Warning)
+            if test_size is not None:
+                warnings.warn('Test set is fixed for this dataset.', Warning)
+
+            shuffled_indices = np.random.permutation(np.arange(len(X_train)))
+            train_idx = shuffled_indices[:train_size]
+            valid_idx = shuffled_indices[train_size: train_size + valid_size]
+        print(f"num_features={num_features} num_classes={num_classes} pickle.dump@{pkl_path}......")
+        data_dict = dict(
+            X_train=X_train[train_idx], y_train=y_train[train_idx],
+            X_valid=X_train[valid_idx], y_valid=y_train[valid_idx],
+            X_test=X_test, y_test=y_test,
+            num_features=num_features,                num_classes=num_classes
+        )
+        with open(pkl_path, "wb") as fp:
+            pickle.dump(data_dict, fp)
+    #   X_train=(320000, 2000)  X_valid=(80000, 2000)   X_test=(100000, 2000)
+    print(f"====== fetch_EPSILON:\tX_train={data_dict['X_train'].shape}\tX_valid={data_dict['X_valid'].shape}"\
+        f"\tX_test={data_dict['X_test'].shape}")
+    return data_dict      
 
 
 def fetch_PROTEIN(path, train_size=None, valid_size=None, test_size=None):
