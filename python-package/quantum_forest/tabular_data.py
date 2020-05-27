@@ -288,7 +288,7 @@ class TabularDataset:
         else:
             return self.X_valid.shape[0]
 
-    def yield_batch(self,batch_size, shuffle=True, epochs=1,allow_incomplete=True, callback=lambda x:x):
+    def yield_batch(self,batch_size, shuffle=True, subsample=1,allow_incomplete=False, callback=lambda x:x):
         
         if self.isTrain:
             tensors=[self.X_train,self.y_train]
@@ -302,7 +302,12 @@ class TabularDataset:
 
         if shuffle:
             np.random.shuffle(indices)
-            print(f"\t>>>>>>>> yield_batch nSamp={nSamp} shuffle={indices[0:10]}")
+            
+        if subsample>=0 and subsample<1:
+            nSamp = (int)(nSamp*subsample)
+            indices = indices[:nSamp]
+            upper_bound = int((np.ceil if allow_incomplete else np.floor) (len(indices) / batch_size)) * batch_size
+        print(f"\t>>>>>>>> yield_batch nSamp={nSamp}/{upper_bound} T={len(tensors)} shuffle={shuffle} i={indices[0:8]}......")
         for batch_start in callback(range(0, upper_bound, batch_size)):                
             batch_ix = indices[batch_start: batch_start + batch_size]
             #print(f"\t\ryield_batch@{batch_start} {batch_ix[0:5]}",end="")

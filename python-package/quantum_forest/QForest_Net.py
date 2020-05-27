@@ -366,15 +366,15 @@ class QuantumForest(object):
         print(f"======  |YY_train|={np.linalg.norm(y_train):.3f},mean={y_train.mean():.3f} std={y_train.std():.3f}")
         wLearner.AfterEpoch(isBetter=True, epoch=0)
         epoch,t0=0,time.time()
-        nBatch = data.__len__()//config.batch_size
+        nBatch = (int)(data.__len__()*config.bagging_fraction)//config.batch_size
         for epoch in range(config.nMostEpochs):   
             # for batch in iterate_minibatch(data.X_train, y_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
-            for batch in data.yield_batch(config.batch_size,shuffle=True, epochs=float('inf')):
+            for batch in data.yield_batch(config.batch_size,subsample=config.bagging_fraction,shuffle=True):
                 metrics = trainer.train_on_batch(*batch, device=config.device)                            
                 loss_history.append(metrics['loss'])
                 if trainer.step%10==0:
                     symbol = "^" if config.cascade_LR else ""
-                    print(f"\r============ {trainer.step-epoch*nBatch}{symbol}/{nBatch}\t{metrics['loss']:.5f}\tL1=[{wLearner.reg_L1:.4g}*{config.reg_L1}]"
+                    print(f"\r============ {trainer.step} {trainer.step-epoch*nBatch}{symbol}/{nBatch}\t{metrics['loss']:.5f}\tL1=[{wLearner.reg_L1:.4g}*{config.reg_L1}]"
                     f"\tL2=[{wLearner.L_gate:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"
                     ,end="")
                 
@@ -400,11 +400,11 @@ class QuantumForest(object):
                 break
             
         
-        if data.X_test is not None:
-            YY_test = data.y_test
-            mse = trainer.AfterEpoch(epoch,data.X_test, YY_test,best_mse,isTest=True)             
-            best_mse = mse
-        trainer.save_checkpoint(tag=f'last_{mse:.6f}')
+        # if data.X_test is not None:   外层更合理
+        #     YY_test = data.y_test
+        #     mse = trainer.AfterEpoch(epoch,data.X_test, YY_test,best_mse,isTest=True)             
+        #     best_mse = mse
+        #     trainer.save_checkpoint(tag=f'last_{best_mse:.6f}')
         self.best_score = best_mse        # return best_mse,mse
         return self
 

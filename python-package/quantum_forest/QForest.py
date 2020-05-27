@@ -39,7 +39,9 @@ class QForest_config:
         
         self.back_bone = 'resnet18_x'
         self.Augment = {"batch_noise":0}    #0.0001
+        self.QF_fit = 1
         self.feature_fraction = 1   #0.7
+        self.bagging_fraction = 1   #0.7
         self.trainer = None;     self.cascade_LR = False;     self.average_training = False   #True不合适，难以和其它模块一起训练
 
         self.err_relative = False
@@ -104,7 +106,10 @@ class QForest_config:
         return self.data.problem()
         
     def model_info(self):
-        return "QF_shallow"
+        if self.model == "GBDT":
+            return "GBDT"
+        else:
+            return "QF_shallow"
 
     def env_title(self):
         title=f"{self.support.value}"

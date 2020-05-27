@@ -76,7 +76,8 @@ class Experiment(nn.Module):
         #self.opt = Optimizer(list(self.model.parameters()), **optimizer_params)
         self.opt_parameters = optimizer_params
         self.Optimizer = Optimizer
-        self.opt = self.Optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),**self.opt_parameters )
+        if hasattr(self.model,"parameters"):
+            self.opt = self.Optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),**self.opt_parameters )
         self.step = 0
         self.n_last_checkpoints = n_last_checkpoints
         self.isFirstBackward = True
