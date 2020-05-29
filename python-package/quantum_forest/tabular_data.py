@@ -156,7 +156,7 @@ class TabularDataset:
     def onFold(self,fold,config,pkl_path=None, train_index=None, valid_index=None, test_index=None):
         if pkl_path is not None:
             print("====== onFold pkl_path={} ......".format(pkl_path))
-        if False and pkl_path is not None and os.path.isfile(pkl_path):
+        if pkl_path is not None and os.path.isfile(pkl_path):
             with open(pkl_path, "rb") as fp:
                 [self.X_train,self.y_train,self.X_valid, self.y_valid,self.X_test,self.y_test,\
             self.quantile_noise,self.Y_trans_method,self.accu_scale,self.Y_mu_0, self.Y_std_0,self.zero_feats] = pickle.load(fp)

@@ -37,7 +37,7 @@ class DeTree(nn.Module):
         self.feat_map = random.choices(population = list(range(self.in_features)),k = self.nGateFuncs) #weights = weight,
         #self.feat_map[0]=1
         self.init_attention_func=nn.init.eye
-        if self.no_attention:
+        if False:   #self.no_attention:
             self.feat_weight = nn.Parameter(torch.Tensor(self.nGateFuncs).uniform_(), requires_grad=True)
             pass
         elif False:  #仅用于对比
@@ -63,7 +63,7 @@ class DeTree(nn.Module):
             self.feat_attention = nn.Parameter( feat_val, requires_grad=True )
         #self.feat_W = nn.Parameter(torch.Tensor(self.in_features).uniform_(), requires_grad=True)
 
-        print(f"====== init_attention f={self.init_attention_func.__name__} no_attention={self.no_attention}")
+        print(f"====== init_attention f={self.init_attention_func.__name__} attention={self.config.attention_alg}")
 
     #weights computed as entmax over the learnable feature selection matrix F ∈ R d×n
     def get_attention_value(self,input):
@@ -226,20 +226,25 @@ class DeTree(nn.Module):
         if self.config.path_way=="TREE_map":
             self.nFeature = 2**depth-1
         self.nGateFuncs = self.num_trees*self.nFeature
-        if False:
+        if self.config.attention_alg == "eca_response":
             self.att_reponse = eca_reponse(self.num_trees)
-            #self.att_input = eca_input(self.in_features)
-        
-        if self.config.attention_alg == "weight":
-            if False and isAdptiveAlpha:      #可以试试，就是时间太长
-                self.entmax_alpha = nn.Parameter(torch.tensor(1.5, requires_grad=True))
-                self.attention_func = entmax.entmax_bisect    #sparsemax, entmax15, entmax_bisect
-            else:
-                self.attention_func = entmax15
+        elif self.config.attention_alg == "eca_input":
+            self.att_input = eca_input(self.in_features)
+        elif self.config.attention_alg == "":
+            print("!!! Empty attention_alg.Please try \"--attention=eca_response\" !!!\n")
         else:
+            raise ValueError( f'INVALID self.config.attention_alg = {self.config.attention_alg}' )
+        
+        
+        if False and isAdptiveAlpha:      #可以试试，就是时间太长
+            self.entmax_alpha = nn.Parameter(torch.tensor(1.5, requires_grad=True))
+            self.attention_func = entmax.entmax_bisect    #sparsemax, entmax15, entmax_bisect
+        else:
+            self.attention_func = entmax15
+        if self.config.attention_alg == "excitation_max":       #失败的尝试
             self.attention_func = excitation_max(in_features,self.nGateFuncs,self.num_trees)
         self.bin_func = "05_01"     #"05_01"        "entmoid15" "softmax"
-        self.no_attention = config.no_attention
+        # self.no_attention = config.no_attention
         self.threshold_init_beta, self.threshold_init_cutoff = threshold_init_beta, threshold_init_cutoff
         self.init_responce_func = initialize_response_
         self.response_mean,self.response_std = 0,0
@@ -309,13 +314,13 @@ class DeTree(nn.Module):
         if hasattr(self,"att_input"):
             input = self.att_input(input)
         # new input shape: [batch_size, in_features]
-        if self.no_attention:
-            feature_values = input[:, self.feat_map]  # torch.index_select(input.flatten(), 0, self.feat_select)
-            #feature_values = torch.einsum('bf,f->bf',feature_values,self.feat_weight)
-            feature_values = feature_values.reshape(-1, self.num_trees, self.depth)
-            assert feature_values.shape[0] == input.shape[0]
-        else:
-            feature_values = self.get_attention_value(input)
+        # if self.no_attention:
+        #     feature_values = input[:, self.feat_map]  # torch.index_select(input.flatten(), 0, self.feat_select)
+        #     #feature_values = torch.einsum('bf,f->bf',feature_values,self.feat_weight)
+        #     feature_values = feature_values.reshape(-1, self.num_trees, self.depth)
+        #     assert feature_values.shape[0] == input.shape[0]
+        # else:
+        feature_values = self.get_attention_value(input)
         # ^--[batch_size, num_trees, depth]
 
         threshold_logits = (feature_values - self.feature_thresholds) * torch.exp(-self.log_temperatures)
@@ -421,13 +426,13 @@ class DeTree(nn.Module):
             print(f"!!!!!! DeTree::initialize@{self.__repr__()} has only {nSamp} sampls. This may cause instability.\n")
 
         with torch.no_grad():
-            if self.no_attention:
-                feature_values = input[:, self.feat_map]                #torch.index_select(input.flatten(), 0, self.feat_select)
-                feature_values = torch.einsum('bf,f->bf', feature_values, self.feat_weight)
-                feature_values=feature_values.reshape(-1,self.num_trees,self.depth)
-                assert feature_values.shape[0]==input.shape[0]
-            else:
-                feature_values = self.get_attention_value(input)
+            # if self.no_attention:
+            #     feature_values = input[:, self.feat_map]                #torch.index_select(input.flatten(), 0, self.feat_select)
+            #     feature_values = torch.einsum('bf,f->bf', feature_values, self.feat_weight)
+            #     feature_values=feature_values.reshape(-1,self.num_trees,self.depth)
+            #     assert feature_values.shape[0]==input.shape[0]
+            # else:
+            feature_values = self.get_attention_value(input)
 
             # initialize thresholds: sample random percentiles of data
             percentiles_q = 100 * np.random.beta(self.threshold_init_beta, self.threshold_init_beta,
@@ -450,8 +455,8 @@ class DeTree(nn.Module):
             f_info = self.attention_func.__repr__()
             f_name = "excitation_max"
             f_init = ""
-        else:
-            f_info = 0 if self.no_attention else self.feat_attention.shape[0]
+        else:            
+            f_info = self.feat_attention.shape[0]
             f_name = self.attention_func.__name__
             f_init = self.init_attention_func.__name__
         main_str = "{}(F={},f={},B={}, T={},D={}, response_dim={}, " \

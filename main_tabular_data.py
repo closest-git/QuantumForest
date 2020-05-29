@@ -285,18 +285,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # parser.add_argument('--use-gpu', action='store_true')
     parser.add_argument('--data_root',required=True)
-    parser.add_argument('--dataset', default='CLICK',help="MICROSOFT,YAHOO,YEAR,CLICK,HIGGS")
+    parser.add_argument('--dataset', default='CLICK',help="MICROSOFT,YAHOO,YEAR,CLICK,HIGGS,EPSILON")
     parser.add_argument('--iterations', default=1000, type=int)
     parser.add_argument('--model', default="QForest", help='QForest,GBDT,LinearRegressor')
-    parser.add_argument('--learning_rate', default="0.01", type=float)
+    parser.add_argument('--learning_rate', default="0.001", type=float)
     parser.add_argument('--subsample', default="1", type=float)
-    parser.add_argument('--QF_fit', default="0", type=int)
+    parser.add_argument('--QF_fit', default="1", type=int)
+    parser.add_argument('--attention', default="eca_response", type=str)
+    parser.add_argument('--scale', default="medium",help='small，medium，large', type=str)
     args = parser.parse_args()
     dataset = args.dataset
     data = quantum_forest.TabularDataset(dataset,data_path=args.data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
     #data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True)
     
-    config = quantum_forest.QForest_config(data,0.002,feat_info="attention")   #,feat_info="importance","attention"
+    config = quantum_forest.QForest_config(data,0.002)   #,feat_info="importance","attention"
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)
     config.model=args.model      #"QForest"            "GBDT" "LinearRegressor"    
@@ -306,19 +308,26 @@ if __name__ == "__main__":
     config.bagging_fraction = args.subsample
     config.nMostEpochs = args.iterations
     config.QF_fit = args.QF_fit
+    config.attention_alg = args.attention
+    if args.scale == "small":
+        config.depth, config.batch_size, config.nTree = 4, 256, 256
+    elif args.scale == "medium":
+        config.depth, config.batch_size, config.nTree = 5, 512, 1024
+    elif args.scale == "large":
+        config.depth, config.batch_size, config.nTree = 5, 512, 2048
 
     if dataset=="YAHOO" or dataset=="MICROSOFT" or dataset=="CLICK" or dataset=="HIGGS" or dataset=="EPSILON":
         config,visual = quantum_forest.InitExperiment(config, 0)
         data.onFold(0,config,pkl_path=f"{args.data_root}{dataset}/FOLD_Quantile_.pickle")
         Fold_learning(0,data, config,visual)
-    else:
+    else:   #"YEAR"
         nFold = 5 if dataset != "HIGGS" else 20
         folds = KFold(n_splits=nFold, shuffle=True)
         index_sets=[]
         for fold_n, (train_index, valid_index) in enumerate(folds.split(data.X)):
             index_sets.append(valid_index)
         for fold_n in range(len(index_sets)):
-            config, visual = InitExperiment(config, fold_n)
+            config, visual = quantum_forest.InitExperiment(config, fold_n)
             train_list=[]
             for i in range(nFold):
                 if i==fold_n:           #test
@@ -330,7 +339,7 @@ if __name__ == "__main__":
             train_index=np.concatenate(train_list)
             print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
 
-            data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{data_root}{dataset}/FOLD_{fold_n}.pickle")
+            data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{args.data_root}{dataset}/FOLD_{fold_n}.pickle")
             Fold_learning(fold_n,data,config,visual)
             break
             

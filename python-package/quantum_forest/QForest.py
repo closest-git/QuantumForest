@@ -21,7 +21,7 @@ class QForest_config:
         self.rDrop = 0
         self.custom_legend = None
         self.feat_info = feat_info
-        self.no_attention = False
+        # self.no_attention = False       #always False since 5/28/2020
         self.max_features = None
         self.input_dropout = 0        #YAHOO 0.59253-0.59136 没啥用
         self.num_layers = 1
@@ -46,7 +46,7 @@ class QForest_config:
 
         self.err_relative = False
         self.task = "train"
-        self.attention_alg = "weight"       #
+        self.attention_alg = "eca_reponse"       # 'eca_input'
 
         self.nMostEpochs = 1000
         self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 256, 8, 1
@@ -121,7 +121,7 @@ class QForest_config:
     def main_str(self):
         main_str = f"{self.data_set}_ layers={self.nLayer} depth={self.depth} batch={self.batch_size} nTree={self.nTree} response_dim={self.response_dim} " \
             f"\nmax_out={self.max_out} choice=[{self.choice_func}] feat_info={self.feat_info}" \
-            f"\nNO_ATTENTION={self.no_attention} reg_L1={self.reg_L1} path_way={self.path_way}"
+            f"\nATTENTION={self.config.attention_alg} reg_L1={self.reg_L1} path_way={self.path_way}"
         #if self.isFC:       main_str+=" [FC]"
         if self.custom_legend is not None:
             main_str = main_str + f"_{self.custom_legend}"
