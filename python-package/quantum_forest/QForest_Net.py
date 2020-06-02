@@ -367,12 +367,13 @@ class QuantumForest(object):
         wLearner.AfterEpoch(isBetter=True, epoch=0)
         epoch,t0=0,time.time()
         nBatch = (int)(data.__len__()*config.bagging_fraction)//config.batch_size
+        nBatch = min(1024,nBatch)
         for epoch in range(config.nMostEpochs):   
             # for batch in iterate_minibatch(data.X_train, y_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
-            for batch in data.yield_batch(config.batch_size,subsample=config.bagging_fraction,shuffle=True):
+            for batch in data.yield_batch(config.batch_size,subsample=config.bagging_fraction,shuffle=True, nMostBatch=nBatch):
                 metrics = trainer.train_on_batch(*batch, device=config.device)                            
                 loss_history.append(metrics['loss'])
-                if trainer.step%10==0:
+                if trainer.step%10==0 or (trainer.step)%nBatch==0:
                     symbol = "^" if config.cascade_LR else ""
                     print(f"\r============ {trainer.step} {trainer.step-epoch*nBatch}{symbol}/{nBatch}\t{metrics['loss']:.5f}\tL1=[{wLearner.reg_L1:.4g}*{config.reg_L1}]"
                     f"\tL2=[{wLearner.L_gate:.4g}*{config.reg_Gate}]\ttime={time.time()-t0:.2f}\t"

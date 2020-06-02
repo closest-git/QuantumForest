@@ -32,17 +32,17 @@ def GBDT_test(config,data,fold_n,num_rounds = 100000):
     nFeatures = data.X_train.shape[1]
     early_stop = 100;    verbose_eval = 20
     
-    #lr = config.lr_base;   
-    bf = config.bagging_fraction;    ff = config.feature_fraction
+    lr = config.lr_base;    #default=0.1
+    bf = config.bagging_fraction;    ff = config.feature_fraction   #default=1.0,1.0
 
     if data.problem()=="classification":
         metric = 'auc'       #"rmse"
-        params = {"objective": "binary", "metric": metric,'n_estimators': num_rounds,"bagging_freq":1,
+        params = {"objective": "binary", "metric": metric,'n_estimators': num_rounds,"bagging_freq":1,'learning_rate':lr,
         "bagging_fraction": bf, "feature_fraction": ff,'verbose_eval': verbose_eval, "early_stopping_rounds": early_stop, 'n_jobs': -1, 
               }
     else:
         metric = 'l2'       #"rmse"
-        params = {"objective": "regression", "metric": metric,'n_estimators': num_rounds,"bagging_freq":1,
+        params = {"objective": "regression", "metric": metric,'n_estimators': num_rounds,"bagging_freq":1,'learning_rate':lr,
               "bagging_fraction": bf, "feature_fraction": ff, 'verbose_eval': verbose_eval, "early_stopping_rounds": early_stop, 'n_jobs': -1,
               }
     print(f"====== GBDT_test\tparams={params}\n")
@@ -286,7 +286,7 @@ if __name__ == "__main__":
     # parser.add_argument('--use-gpu', action='store_true')
     parser.add_argument('--data_root',required=True)
     parser.add_argument('--dataset', default='CLICK',help="MICROSOFT,YAHOO,YEAR,CLICK,HIGGS,EPSILON")
-    parser.add_argument('--iterations', default=1000, type=int)
+    parser.add_argument('--iterations', default=100000, type=int)
     parser.add_argument('--model', default="QForest", help='QForest,GBDT,LinearRegressor')
     parser.add_argument('--learning_rate', default="0.001", type=float)
     parser.add_argument('--subsample', default="1", type=float)
@@ -294,6 +294,7 @@ if __name__ == "__main__":
     parser.add_argument('--attention', default="eca_response", type=str)
     parser.add_argument('--scale', default="medium",help='small，medium，large', type=str)
     args = parser.parse_args()
+    print(f"===== {args.__dict__}")
     dataset = args.dataset
     data = quantum_forest.TabularDataset(dataset,data_path=args.data_root, random_state=1337, quantile_transform=True, quantile_noise=1e-3)
     #data = quantum_forest.TabularDataset(dataset,data_path=data_root, random_state=1337, quantile_transform=True)
@@ -318,7 +319,7 @@ if __name__ == "__main__":
 
     if dataset=="YAHOO" or dataset=="MICROSOFT" or dataset=="CLICK" or dataset=="HIGGS" or dataset=="EPSILON":
         config,visual = quantum_forest.InitExperiment(config, 0)
-        data.onFold(0,config,pkl_path=f"{args.data_root}{dataset}/FOLD_Quantile_.pickle")
+        data.onFold(0,config,pkl_path=f"{args.data_root}{dataset}/FOLD_Quantile_{config.model}.pickle")
         Fold_learning(0,data, config,visual)
     else:   #"YEAR"
         nFold = 5 if dataset != "HIGGS" else 20
@@ -339,7 +340,7 @@ if __name__ == "__main__":
             train_index=np.concatenate(train_list)
             print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
 
-            data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{args.data_root}{dataset}/FOLD_{fold_n}.pickle")
+            data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{args.data_root}{dataset}/FOLD_{fold_n}_{config.model}.pickle")
             Fold_learning(fold_n,data,config,visual)
             break
             

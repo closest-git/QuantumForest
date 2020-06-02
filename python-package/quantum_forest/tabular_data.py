@@ -154,6 +154,7 @@ class TabularDataset:
             return "regression"
 
     def onFold(self,fold,config,pkl_path=None, train_index=None, valid_index=None, test_index=None):
+        isTrans = config.model == "QForest"     #GBDT等无需变换
         if pkl_path is not None:
             print("====== onFold pkl_path={} ......".format(pkl_path))
         if pkl_path is not None and os.path.isfile(pkl_path):
@@ -177,25 +178,25 @@ class TabularDataset:
             if hasattr(self,"nClasses"):    #classification
                 #self.y_train = self.y_train.astype(np.float32)
                 self.Y_trans_method,self.accu_scale,self.Y_mu_0, self.Y_std_0=None,None,None,None
-            else:   #regression
+            elif isTrans:   #regression
                 self.Y_trans_method = "normal"
                 self.y_train = self.Y_trans(self.y_train,isPredict=False)
                 self.y_valid = self.y_valid.astype(np.float32)
-                if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)            
+                if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)    
+            else:
+                self.Y_trans_method=""      
+                self.y_train = self.Y_trans(self.y_train,isPredict=False)  
             
-            t0=time.time()
-            if False:
-                mean = np.mean(self.X_train, axis=0)
-                std = np.std(self.X_train, axis=0)
-                self.X_train = (self.X_train - mean) / std
-                self.X_valid = (self.X_valid - mean) / std
-                self.X_test = (self.X_test - mean) / std
-            trans_ = self.quantile_trans_
-            listX, _ = trans_(self.random_state, self.X_train,
-                    [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
-            self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]            
-            print(f"====== TabularDataset::quantile_transform X_train={self.X_train.shape} X_valid={self.X_valid.shape} noise={self.quantile_noise} time={time.time()-t0:.5f}")
-            gc.collect()
+            t0=time.time()        
+            if isTrans:    
+                trans_ = self.quantile_trans_
+                listX, _ = trans_(self.random_state, self.X_train,
+                        [self.X_train, self.X_valid, self.X_test],distri='normal', noise=self.quantile_noise)
+                self.X_train, self.X_valid, self.X_test = listX[0], listX[1], listX[2]            
+                print(f"====== TabularDataset::quantile_transform X_train={self.X_train.shape} X_valid={self.X_valid.shape} noise={self.quantile_noise} time={time.time()-t0:.5f}")
+                gc.collect()
+            else:
+                self.quantile_noise = 0
 
             if pkl_path is not None:
                 with open(pkl_path, "wb") as fp:
@@ -288,7 +289,7 @@ class TabularDataset:
         else:
             return self.X_valid.shape[0]
 
-    def yield_batch(self,batch_size, shuffle=True, subsample=1,allow_incomplete=False, callback=lambda x:x):
+    def yield_batch(self,batch_size, shuffle=True, subsample=1,allow_incomplete=False, nMostBatch=-1):
         
         if self.isTrain:
             tensors=[self.X_train,self.y_train]
@@ -307,8 +308,10 @@ class TabularDataset:
             nSamp = (int)(nSamp*subsample)
             indices = indices[:nSamp]
             upper_bound = int((np.ceil if allow_incomplete else np.floor) (len(indices) / batch_size)) * batch_size
+        if nMostBatch>0:
+            upper_bound = min(upper_bound,batch_size*nMostBatch)
         print(f"\t>>>>>>>> yield_batch nSamp={nSamp}/{upper_bound} T={len(tensors)} shuffle={shuffle} i={indices[0:8]}......")
-        for batch_start in callback(range(0, upper_bound, batch_size)):                
+        for batch_start in range(0, upper_bound, batch_size):                
             batch_ix = indices[batch_start: batch_start + batch_size]
             #print(f"\t\ryield_batch@{batch_start} {batch_ix[0:5]}",end="")
             batch = [tensor[batch_ix] for tensor in tensors]
