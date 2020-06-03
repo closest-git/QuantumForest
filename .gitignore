@@ -32,6 +32,7 @@ logs
 python-package/dist
 .pytest_cache/v/cache
 runs
+catboost_info/
 
 # Visual Studio 2015 cache/options directory
 .vs/
