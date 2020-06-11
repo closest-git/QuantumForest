@@ -18,37 +18,92 @@ Reduce a lot of work on data preprocessing and feature engineering.
 
 ## Performance
 
-To verify our model and algorithm, we test its performance on **five large datasets**. 
+To verify our model and algorithm, we test its performance on **six large datasets**. 
 
-|             | Higgs          | Click          | YearPrediction       | Microsoft    | Yahoo               |
-| ----------- | -------------- | -------------- | -------------------- | ------------ | ------------------- |
-| Train       | 10.5M          | 800K           | 463K                 | 723K         | 544K                |
-| Test        | 500K           | 200K           | 51.6K                | 241K         | 165K                |
-| Features    | 28             | 11             | 90                   | 136          | 699                 |
-| Problem     | Classification | Classification | Regression           | Regression   | Regression          |
-| Description | UCI ML Higgs   | 2012 KDD Cup   | Million Song Dataset | MSLR-WEB 10k | Yahoo LETOR dataset |
+​													Table 1: Six large tabular datasets
+
+|             |     Higgs      |     Click      |    YearPrediction    |  Microsoft   |        Yahoo        | EPSILON               |
+| ----------- | :------------: | :------------: | :------------------: | :----------: | :-----------------: | :-------------------- |
+| Training    |      8.4M      |      800K      |         309K         |     580K     |        473K         | 320K                  |
+| Validation  |      2.1M      |      100K      |         103K         |     143      |         71K         | 80K                   |
+| Test        |      500K      |      100K      |         103K         |     241K     |        165K         | 100K                  |
+| Features    |       28       |       11       |          90          |     136      |         699         | 2000                  |
+| Problem     | Classification | Classification |      Regression      |  Regression  |     Regression      | Classification        |
+| Description |  UCI ML Higgs  |  2012 KDD Cup  | Million Song Dataset | MSLR-WEB 10k | Yahoo LETOR dataset | PASCAL Challenge 2008 |
 
 
 
-The following table  listed the accuracy of some libraries
+The following table lists the accuracy of QuantumForest and some GBDT libraries
 
-|               | Higgs     | Click      | YearPrediction | Microsoft  | Yahoo      |
-| ------------- | --------- | ---------- | -------------- | ---------- | ---------- |
-| CatBoost [7]  | 0.2434    | 0.3438     | 80.68          | 0.5587     | 0.5781     |
-| XGBoost [5]   | 0.2600    | 0.3461     | 81.11          | 0.5637     | 0.5756     |
-| NODE [2]      | 0.2412    | **0.3309** | 77.43          | 0.5584     | 0.5666     |
-| mGBDT [21]    | OOM       | OOM        | 80.67          | OOM        | OOM        |
-| QuantumForest | **0.237** | 0.3318     | **74.02**      | **0.5568** | **0.5656** |
+|               | Higgs      | Click      | YearPrediction | Microsoft  | Yahoo      | EPSILON    |
+| ------------- | ---------- | ---------- | -------------- | ---------- | ---------- | ---------- |
+| CatBoost      | 0.2434     | 0.3438     | 80.68          | 0.5587     | 0.5781     | 0.1119     |
+| XGBoost       | 0.2600     | 0.3461     | 81.11          | 0.5637     | 0.5756     | 0.1144     |
+| LightGBM      | **0.2291** | 0.3322     | 76.25          | 0.5587     | **0.5576** | 0.1160     |
+| NODE          | 0.2412     | **0.3309** | 77.43          | 0.5584     | 0.5666     | **0.1043** |
+| mGBDT         | OOM        | OOM        | 80.67          | OOM        | OOM        | OOM        |
+| QuantumForest | 0.2467     | **0.3309** | **74.02**      | **0.5568** | 0.5656     | 0.1048     |
 
 *Some results are copied form the testing results of NODE 
 
- All libraries use default parameters. It’s clear that mGBDT needs much more memory than other libs. mGBDT always failed because out or memory for most large datasets. Both NODE and QuantumForest have higher accuracy than CatBoost and XGBoost. It is a clear sign that differentiable forest model has more potential than classical GBDT models. 
+ All libraries use default parameters. LightGBM is the winner of ’Higgs’ and ’Yahoo’ datasets. NODE is the winner of ’Click’ datasets. QuantumForest performs best on the ’Click’, ’YearPrediction’,’Microsoft’, and ’EPSILON’ datasets. mGBDT always failed because out of memory(OOM) for most large datasets.  The differentiable forest model has only been developed for a few years and is still in its early stages. QuantumForest shows the potential of differentiable forest model. 
 
 
 
-## Demo
+## Usage
 
-python main_tabular_data.py
+#### For six large dataset in Table 1:
+
+1. Create folder for datasets ***data_root***
+
+   QuantumForest would automatically download the datasets and save the files at ***data_root*** . Then automatically split each dataset into training, validation and test sets.
+
+   For other dataset, uses should prepare the dataset and 
+
+2. To get the accuracy of QuantumForest 
+
+   ```
+   python main_tabular_data.py --data_root=../Datasets/ --dataset=HIGGS
+   ```
+
+   The valid values of **dataset** are [YEAR,YAHOO,CLICK,MICROSOFT,HIGGS,EPSILON]
+
+3. To get the accuracy of other GBDT libraries (all with default parameters)
+
+   ```python
+   python main_tabular_data.py  --dataset=HIGGS --model=LightGBM
+   ```
+
+   The valid values of **model** are [LightGBM, XGBoost, Catboost]
+
+#### For other datasets:
+
+1 Prepare the **data**
+
+​	The class of data should be the child class of quantum_forest.TabularDataset. For the detail, please 			see TabularDataset.py.
+
+2 Call quantum_forest
+
+```python
+import quantum_forest
+
+config = quantum_forest.QForest_config(data,0.002)     
+config.device = quantum_forest.OnInitInstance(random_state=42)
+config.model="QForest"      
+config.in_features = data.X_train.shape[1]
+config.tree_module = quantum_forest.DeTree 
+config, visual =  quantum_forest.InitExperiment(config, 0)
+config.response_dim = 3
+config.feat_info = None
+data.onFold(0,config,pkl_path=f"FOLD_0.pickle")
+learner = quantum_forest.QuantumForest(config,data,feat_info=None,visual=visual).   \
+                fit(data.X_train, data.y_train, eval_set=[(data.X_valid,data.y_valid)])
+best_score = learner.best_score
+```
+
+
+
+## Notes
 
 
 

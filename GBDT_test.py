@@ -31,10 +31,10 @@ def Catboost_train(config,data,param_0,fold_n):
     X_valid, y_valid = data.X_valid, data.y_valid
     X_test, y_test = data.X_test, data.y_test
     params = {
-        'devices': [0],
+        #'devices': [0],
         'logging_level': 'Info',
         #'use_best_model': False,
-        'bootstrap_type': 'Bernoulli',
+        #'bootstrap_type': 'Bernoulli',
         'random_seed': 42,
         'n_estimators': num_rounds,
     }
@@ -47,9 +47,11 @@ def Catboost_train(config,data,param_0,fold_n):
         model = cat.CatBoostClassifier(**params)
     else:
         params['loss_function'] = 'RMSE'    
-        model = cat.CatBoostRegressor(**params)
-    model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=min(num_rounds//10,100))
-    #model.fit(X_train, y_train)
+        model = cat.CatBoostRegressor(iterations=num_rounds,loss_function='RMSE')
+    #model.fit(X_train, y_train,eval_set=[(X_train, y_train), (X_valid, y_valid)],verbose=min(num_rounds//10,100))
+    train_pool = cat.Pool(X_train, y_train) 
+    valid_pool  = cat.Pool(X_valid,y_valid) 
+    model.fit(train_pool, eval_set=valid_pool)
     #pred_val = model.predict(data.X_test)
     
     return model,None
