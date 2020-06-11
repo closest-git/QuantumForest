@@ -50,31 +50,41 @@ The following table lists the accuracy of QuantumForest and some GBDT libraries
 
 
 
+## Dependencies
+
+- Python 3.7
+
+- PyTorch 1.3.1
+
+  
+
 ## Usage
 
 #### For six large dataset in Table 1:
 
-1. Create folder for datasets ***data_root***
+1. Create a directory ***data_root*** for storing datasets
 
    QuantumForest would automatically download the datasets and save the files at ***data_root*** . Then automatically split each dataset into training, validation and test sets.
 
-   For other dataset, uses should prepare the dataset and 
-
 2. To get the accuracy of QuantumForest 
 
+   For example, test the accuracy of the *HIGGS* dataset
+
    ```
-   python main_tabular_data.py --data_root=../Datasets/ --dataset=HIGGS
+   python main_tabular_data.py --data_root=../Datasets/ --dataset=HIGGS --learning_rate=0.002
    ```
 
-   The valid values of **dataset** are [YEAR,YAHOO,CLICK,MICROSOFT,HIGGS,EPSILON]
+   To test other datasets, set the *dataset* to one of *[YEAR,YAHOO,CLICK,MICROSOFT,HIGGS,EPSILON]*
 
 3. To get the accuracy of other GBDT libraries (all with default parameters)
 
+   For example, test the accuracy of LightGBM
+
    ```python
-   python main_tabular_data.py  --dataset=HIGGS --model=LightGBM
+   python main_tabular_data.py  --dataset=HIGGS --model=LightGBM 
    ```
 
-   The valid values of **model** are [LightGBM, XGBoost, Catboost]
+   To test other GBDT libraries, set the  *model* to *LightGBM, XGBoost, or Catboost* 
 
 #### For other datasets:
 
@@ -105,7 +115,15 @@ best_score = learner.best_score
 
 ## Notes
 
+More parameters
 
+```
+python main_tabular_data.py  --dataset=HIGGS --learning_rate=0.001 --scale=large --subsample=0.3
+```
+
+1. set different *learning_rate*.
+2. set *scale* to *large*, the accuracy will be higher, but it will take longer to run.
+3. set *subsample*<1.0, the accuracy maybe higher with less time.
 
 ## Citation
 
