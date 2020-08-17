@@ -46,7 +46,7 @@ class QForest_config:
 
         self.err_relative = False
         self.task = "train"
-        self.attention_alg = "eca_reponse"       # 'eca_input'
+        self.attention_alg = "eca_response"       # 'eca_input'
 
         self.nMostEpochs = 1000
         self.depth, self.batch_size, self.nTree, self.response_dim, self.nLayers = 5, 256, 256, 8, 1
