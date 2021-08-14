@@ -70,7 +70,7 @@ The following table lists the accuracy of QuantumForest and some GBDT libraries
 
    For example, test the accuracy of the *HIGGS* dataset
 
-   ```
+   ```python
    python main_tabular_data.py --data_root=../Datasets/ --dataset=HIGGS --learning_rate=0.002
    ```
 
@@ -117,7 +117,7 @@ best_score = learner.best_score
 
 More parameters
 
-```
+```python
 python main_tabular_data.py  --dataset=HIGGS --learning_rate=0.001 --scale=large --subsample=0.3
 ```
 

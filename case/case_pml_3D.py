@@ -1,10 +1,3 @@
-'''
-@Author: Yingshi Chen
-
-@Date: 2020-03-15 19:28:48
-@
-# Description: 
-'''
 
 import os, sys
 import time
@@ -19,6 +12,7 @@ from main_tabular_data import *
 import argparse 
 import glob
 from io import StringIO
+import pandas as pd
 #import pandas_profiling
 
 class PML_dataset(quantum_forest.TabularDataset):
@@ -51,11 +45,12 @@ class PML_dataset(quantum_forest.TabularDataset):
         for pt_files in group_files:
             #if pt_files==group_path:                continue
             X_,Y_,_ = self.load_files_v0(pt_files+"/")
+            ldX,ldY = X_.shape[-1], Y_.shape[-1]
             if self.isPrecit:
-                assert X_.shape==(1500,12) 
+                assert ldX==12 
                 Y_ = None
             else:
-                assert X_.shape==(1500,12) and Y_.shape==(1500,3)
+                assert ldX==12 and ldY==3
             listX_.append(X_);      listY_.append(Y_)
             nPt = nPt+1
             if nPt>=self.nMostPt:   
@@ -71,17 +66,59 @@ class PML_dataset(quantum_forest.TabularDataset):
             num_features = self.X.shape[1]
             #self.X=self.X*1.0e6;            self.Y=self.Y*1.0e6
         else:
-            print("Failed to load data@{self.data_path}!!!")
+            print(f"Failed to load data@{self.data_path}!!!")
+        nX,nY=len(self.X), len(self.Y)
         lenY = np.linalg.norm(self.Y)
+        lenX = np.linalg.norm(self.X)
+        if False:
+            self.X = self.X/(lenX/nX)
+            self.Y = self.Y/(lenY/nY)
+            lenY = np.linalg.norm(self.Y);            lenX = np.linalg.norm(self.X)
         if False:   #时间太长，pandas_profiling低效
             df = pd.DataFrame(self.X)
             print(df.head())
             pfr = pandas_profiling.ProfileReport(df)
             pfr.to_file("./example.html")
 
-        print(f"X_={self.X.shape} {self.X[:5,:]}\n{self.X[-5:,:]}")
-        print(f"Y_={self.Y.shape} |Y|={lenY:.4f}\t{self.Y[:50]}\n{self.Y[-50:]}")
+        print(f"X_={self.X.shape} |X|={lenX:.4g} {lenX/nX:.4g}\t \n{self.X[:5,:]}\n{self.X[-5:,:]} ")
+        print(f"Y_={self.Y.shape} |Y|={lenY:.4g} {lenY/nY:.4g}\t \n{self.Y[:10]}\n{self.Y[-10:]}")
         return 
+    
+    def plot_arr(self,arr,title):
+        title = title + str(arr.shape)
+        df = pd.DataFrame(arr)
+        df.hist(figsize=(9,6), bins = 100,ec="k")
+
+        # if len(df.columns)==1:
+        #     df.hist()
+        # else:
+        #     nRow = max(1,len(df.columns)//3)
+        #     fig, axes = plt.subplots(nRow, 3, figsize=(12, 24))
+        #     i = 0
+        #     for triaxis in axes:
+        #         for axis in triaxis:
+        #             df.hist(column = df.columns[i], bins = 50, ax=axis)
+        #             i = i+1
+        #     # [x.title.set_size(32) for x in fig.ravel()]
+        plt.tight_layout()
+        plt.title(title)
+        plt.show()        
+        plt.close()
+
+    def plot(self):
+        self.plot_arr(self.X,"X_")
+        self.plot_arr(self.Y,"Y_")
+        
+        i = 0
+        # a_0,a_1 = self.X.min(),self.X.max()        
+        # fig, ax = plt.subplots()
+        # plt.hist(self.X.ravel(), bins=50)
+        # #plt.savefig(f'1.jpg')
+        # plt.show()
+        # plt.hist(self.Y.ravel(), bins=50)
+        # #plt.savefig(f'1.jpg')
+        # plt.show()
+        # plt.close()
 
     def load_files_v0(self,files_path,isMerge=True):
         points,list_of_files = {}, glob.glob(f"{files_path}*")
@@ -176,13 +213,14 @@ if __name__ == "__main__":
         exit(-1)
 
     data_paths = [
-            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
-            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型右边的全部离散P点/",
-            #"E:/xiada/FengNX/2028组/模型右边的全部离散P点/",
-            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型下边的全部离散P点/",
-            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型左边的全部离散P点/",
+            # "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
+            "I:/PML_datas/3D/Z_1第一层/模型上边的全部离散P点/",
+            #  "I:/PML_datas/3D/Z_1第一层/模型下边的全部离散P点/",
+            #   "I:/PML_datas/3D/Z_1第一层/模型右边的全部离散P点/",
+            #    "I:/PML_datas/3D/Z_1第一层/模型左边的全部离散P点/",
         ]
     data = PML_dataset(dataset,data_path=data_paths,ex_ey_hz=2)        #,nMostPt=10
+    data.plot()
     config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"    
     data_root = "F:/Datasets/"   #args.data_root
     random_state = 42
@@ -214,6 +252,7 @@ if __name__ == "__main__":
         print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
 
         data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{data_root}{dataset}/FOLD_{fold_n}.pickle")
+        # data.plot()
         data.Y_mean,data.Y_std = data.y_train.mean(), data.y_train.std()
         if False:
             Fold_learning(fold_n,data,config,visual)
