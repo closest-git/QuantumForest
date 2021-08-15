@@ -13,6 +13,7 @@ import argparse
 import glob
 from io import StringIO
 import pandas as pd
+import gc
 #import pandas_profiling
 
 class PML_data3D(quantum_forest.TabularDataset):
@@ -32,48 +33,64 @@ class PML_data3D(quantum_forest.TabularDataset):
     def load_files(self,isGroup=True):
         self.isTrain = True
         self.isSample = False
-        listX_,listY_=[],[]
         nPt=0
-        if isGroup:
-            group_files=[]
-            for group_path in self.data_path:
-                points,files = {}, [x[0] for x in os.walk(group_path) if x[0]!=group_path]   #glob.glob(f"{self.data_path}*")  
-                group_files.extend(files)              
+            
+        if self.pkl_path is not None and os.path.isfile(self.pkl_path):
+            print("====== PML_data3D::load_files pkl_path={} ......".format(self.pkl_path))
+            with open(self.pkl_path, "rb") as fp:
+                [self.X,self.Y,nPt] = pickle.load(fp)            
+            gc.collect()
         else:
-            group_files = self.data_path
-        nMostGroup = len(group_files)
-        if nMostGroup==0:
-            return
+            listX_,listY_=[],[]
+            
+            if isGroup:
+                group_files=[]
+                for group_path in self.data_path:
+                    points,files = {}, [x[0] for x in os.walk(group_path) if x[0]!=group_path]   #glob.glob(f"{self.data_path}*")  
+                    group_files.extend(files)              
+            else:
+                group_files = self.data_path
+            nMostGroup = len(group_files)
+            if nMostGroup==0:
+                return
 
-        for pt_files in group_files:
-            print(f"{nPt}\tload files@{pt_files}......")
-            #if pt_files==group_path:                continue
-            list_of_files = glob.glob(f"{pt_files}/*")
-            if len(list_of_files)!=15:
-                continue
-            X_,Y_,_ = self.load_files_v0(pt_files+"/")
-            ldX,ldY = X_.shape[-1], Y_.shape[-1]
-            if self.isPrecit:
-                assert ldX==12 
-                Y_ = None
+            for pt_files in group_files:
+                print(f"\r{nPt}\tload files@{pt_files}......",  end="")
+                #if pt_files==group_path:                continue
+                list_of_files = glob.glob(f"{pt_files}/*")
+                if len(list_of_files)!=15:
+                    continue
+                X_,Y_,_ = self.load_files_v0(pt_files+"/")
+                if X_ is None or Y_ is None:
+                    print(f"FAILED!!!!!     {nPt}\tload files@{pt_files}...... FAILED!!!!!!")
+                    continue
+                ldX,ldY = X_.shape[-1], Y_.shape[-1]
+                if self.isPrecit:
+                    assert ldX==12 
+                    Y_ = None
+                else:
+                    if ldX!=12 or ldY!=3:
+                        print(f"FAILED!!!!!     {nPt}\tload files@{pt_files}...... ldX={ldX} ldY={ldY}!!!!!!")
+                        continue
+                    assert ldX==12 and ldY==3
+                listX_.append(X_);      listY_.append(Y_)
+                nPt = nPt+1
+                if nPt>=self.nMostPt:   
+                    break
+            if len(listX_)>0:            
+                self.X = np.vstack(listX_)
+                if not self.isPrecit:
+                    self.Y = np.vstack(listY_)
+                    self.Y=self.Y[:,self.ex_ey_hz]                
+                else:
+                    self.Y = np.zeros((self.X.shape[0],3))
+                self.nFeature = self.X.shape[1]
             else:
-                assert ldX==12 and ldY==3
-            listX_.append(X_);      listY_.append(Y_)
-            nPt = nPt+1
-            if nPt>=self.nMostPt:   
-                break
-        if len(listX_)>0:            
-            self.X = np.vstack(listX_)
-            if not self.isPrecit:
-                self.Y = np.vstack(listY_)
-                self.Y=self.Y[:,self.ex_ey_hz]                
-            else:
-                self.Y = np.zeros((self.X.shape[0],3))
-            self.nFeature = self.X.shape[1]
-            num_features = self.X.shape[1]
-            #self.X=self.X*1.0e6;            self.Y=self.Y*1.0e6
-        else:
-            print(f"Failed to load data@{self.data_path}!!!")
+                print(f"Failed to load data@{self.data_path}!!!")
+            if self.pkl_path is not None:
+                with open(self.pkl_path, "wb") as fp:
+                    pickle.dump([self.X,self.Y,nPt], fp)
+        self.nFeature = self.X.shape[1]
         nX,nY=len(self.X), len(self.Y)
         lenY = np.linalg.norm(self.Y)
         lenX = np.linalg.norm(self.X)
@@ -88,7 +105,7 @@ class PML_data3D(quantum_forest.TabularDataset):
             print(df.head())
             pfr = pandas_profiling.ProfileReport(df)
             pfr.to_file("./example.html")
-
+        self.nPoint = nPt
         print(f"X_={self.X.shape} |X|={lenX:.4g} {lenX/nX:.4g}\t \n{self.X[:5,:]}\n{self.X[-5:,:]} ")
         print(f"Y_={self.Y.shape} |Y|={lenY:.4g} {lenY/nY:.4g}\t \n{self.Y[:10]}\n{self.Y[-10:]}")
         return 
@@ -115,8 +132,9 @@ class PML_data3D(quantum_forest.TabularDataset):
         plt.close()
 
     def plot(self):
-        self.plot_arr(self.X,"X_")
-        self.plot_arr(self.Y,"Y_")
+        if self.nPoint>0:
+            self.plot_arr(self.X,"X_")
+            self.plot_arr(self.Y,"Y_")
 
     def load_files_v0(self,files_path,isMerge=True):
         points,list_of_files = {}, glob.glob(f"{files_path}*")
@@ -135,6 +153,7 @@ class PML_data3D(quantum_forest.TabularDataset):
             #print(filedata)
             df = pd.read_csv(filedata,header = None,dtype=np.float)    
             columns = df.columns
+            
             #df.rename(columns={columns[0]:key},inplace=True) 
             #print(f"{name}={df.shape}\n{df}")       
             if isY:
@@ -143,6 +162,8 @@ class PML_data3D(quantum_forest.TabularDataset):
                 X_[key]=df[0]
 
         num_features = X_.shape[1]
+        if X_.shape[0]!=Y_.shape[0]:
+            return None,None,None
         assert X_.shape[0]==Y_.shape[0]
         if isMerge:
             return X_.values.astype('float32'), Y_.values.astype('float32'),None
@@ -165,10 +186,14 @@ class PML_data3D(quantum_forest.TabularDataset):
         self.data_path = data_path
         self.nMostPt = nMostPt
         self.isPrecit = isPrecit
-        self.ex_ey_hz=ex_ey_hz         #output component
-
+        self.ex_ey_hz = ex_ey_hz         #output component
+        P__ =  data_path[0].replace('\\','_').replace('/','_').replace(':','_')
+        self.pkl_path = f"F:/Datasets/PML3D/S{self.isScale}_Q_{quantile_noise}_Y{self.ex_ey_hz}_P{P__}_.pickle"   
+        self.nPoint = 0
+        self.X = None;      self.Y = None
         self.load_files(isGroup=True)
-        self.zero_feats=[]        
+        self.zero_feats=[]  
+            
         
 
 def predict_(args):
@@ -201,7 +226,7 @@ def predict_(args):
     pass
 
 if __name__ == "__main__":
-    dataset = "PML"
+    dataset = "PML3D"
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, help='path to pretrained model', default='E:/xiada/FengNX/pml_trained.pth')
     parser.add_argument('--predict', type=str, help='the directory include testing sample files', 
@@ -214,11 +239,14 @@ if __name__ == "__main__":
 
     data_paths = [
             # "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
-            # "I:/PML_datas/2028组/模型上边的全部离散P点/",       #
-            "I:/PML_datas/3D/",
+            # "H:/PML_datas/2028组/模型上边的全部离散P点/",       #
+            # "H:/PML_datas/tiny/",
+            "H:/PML_datas/3D/",
             # "I:/PML_datas/3D/Z_1第一层/模型上边的全部离散P点/第26组 p点是模型上边第26个点ia加25/"
         ]
     data = PML_data3D(dataset,data_path=data_paths,ex_ey_hz=2)        #,nMostPt=10
+    if data.nPoint==0:
+        sys.exit(-2)
     data.plot()
     config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"    
     data_root = "F:/Datasets/"   #args.data_root
@@ -249,7 +277,7 @@ if __name__ == "__main__":
                 train_list.append(index_sets[i])
         train_index=np.concatenate(train_list)
         print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
-        pkl_= f"{data_root}{dataset}/FOLD_{fold_n}_{data.X.shape}.pickle"
+        pkl_= f"{data_root}{dataset}/FOLD_{fold_n}_PT{data.nPoint}_X{data.X.shape}_Y{data.ex_ey_hz}_.pickle"
         data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=pkl_)
         # data.plot()
         data.Y_mean,data.Y_std = data.y_train.mean(), data.y_train.std()
