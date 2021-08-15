@@ -15,7 +15,7 @@ from io import StringIO
 import pandas as pd
 #import pandas_profiling
 
-class PML_dataset(quantum_forest.TabularDataset):
+class PML_data3D(quantum_forest.TabularDataset):
     def file2key(self,file):
         name = os.path.basename(file)
         infos = name.split("_")
@@ -41,9 +41,16 @@ class PML_dataset(quantum_forest.TabularDataset):
                 group_files.extend(files)              
         else:
             group_files = self.data_path
-        nPoint = len(group_files)
+        nMostGroup = len(group_files)
+        if nMostGroup==0:
+            return
+
         for pt_files in group_files:
+            print(f"{nPt}\tload files@{pt_files}......")
             #if pt_files==group_path:                continue
+            list_of_files = glob.glob(f"{pt_files}/*")
+            if len(list_of_files)!=15:
+                continue
             X_,Y_,_ = self.load_files_v0(pt_files+"/")
             ldX,ldY = X_.shape[-1], Y_.shape[-1]
             if self.isPrecit:
@@ -70,9 +77,11 @@ class PML_dataset(quantum_forest.TabularDataset):
         nX,nY=len(self.X), len(self.Y)
         lenY = np.linalg.norm(self.Y)
         lenX = np.linalg.norm(self.X)
-        if False:
-            self.X = self.X/(lenX/nX)
-            self.Y = self.Y/(lenY/nY)
+        if self.isScale:
+            x_0,x_1=self.X.min(),self.X.max()
+            self.X = (self.X-x_0)/(x_1-x_0)
+            y_0,y_1=self.Y.min(),self.Y.max()
+            self.Y = (self.Y-y_0)/(y_1-y_0)
             lenY = np.linalg.norm(self.Y);            lenX = np.linalg.norm(self.X)
         if False:   #时间太长，pandas_profiling低效
             df = pd.DataFrame(self.X)
@@ -108,17 +117,6 @@ class PML_dataset(quantum_forest.TabularDataset):
     def plot(self):
         self.plot_arr(self.X,"X_")
         self.plot_arr(self.Y,"Y_")
-        
-        i = 0
-        # a_0,a_1 = self.X.min(),self.X.max()        
-        # fig, ax = plt.subplots()
-        # plt.hist(self.X.ravel(), bins=50)
-        # #plt.savefig(f'1.jpg')
-        # plt.show()
-        # plt.hist(self.Y.ravel(), bins=50)
-        # #plt.savefig(f'1.jpg')
-        # plt.show()
-        # plt.close()
 
     def load_files_v0(self,files_path,isMerge=True):
         points,list_of_files = {}, glob.glob(f"{files_path}*")
@@ -159,6 +157,8 @@ class PML_dataset(quantum_forest.TabularDataset):
 
     def __init__(self, dataset, data_path, normalize=False,nMostPt=100000,isPrecit=False,ex_ey_hz=0,
                  quantile_transform=False, output_distribution='normal', quantile_noise=1.0e-3, **kwargs):
+        #2028组 0.009/0.237
+        self.isScale = True
         self.random_state = 42
         self.quantile_noise = quantile_noise
         self.name = f"{dataset}"
@@ -167,7 +167,7 @@ class PML_dataset(quantum_forest.TabularDataset):
         self.isPrecit = isPrecit
         self.ex_ey_hz=ex_ey_hz         #output component
 
-        self.load_files()
+        self.load_files(isGroup=True)
         self.zero_feats=[]        
         
 
@@ -177,7 +177,7 @@ def predict_(args):
         print(f"'{args.model}' is not a valid MODEL file!!!")
         return
     data_paths = [args.predict]
-    data = PML_dataset("PML_predict",data_path=data_paths,nMostPt=1,isPrecit=True)
+    data = PML_data3D("PML_predict",data_path=data_paths,nMostPt=1,isPrecit=True)
     config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)
@@ -214,12 +214,11 @@ if __name__ == "__main__":
 
     data_paths = [
             # "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
-            "I:/PML_datas/3D/Z_1第一层/模型上边的全部离散P点/",
-            #  "I:/PML_datas/3D/Z_1第一层/模型下边的全部离散P点/",
-            #   "I:/PML_datas/3D/Z_1第一层/模型右边的全部离散P点/",
-            #    "I:/PML_datas/3D/Z_1第一层/模型左边的全部离散P点/",
+            # "I:/PML_datas/2028组/模型上边的全部离散P点/",       #
+            "I:/PML_datas/3D/",
+            # "I:/PML_datas/3D/Z_1第一层/模型上边的全部离散P点/第26组 p点是模型上边第26个点ia加25/"
         ]
-    data = PML_dataset(dataset,data_path=data_paths,ex_ey_hz=2)        #,nMostPt=10
+    data = PML_data3D(dataset,data_path=data_paths,ex_ey_hz=2)        #,nMostPt=10
     data.plot()
     config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"    
     data_root = "F:/Datasets/"   #args.data_root
@@ -250,8 +249,8 @@ if __name__ == "__main__":
                 train_list.append(index_sets[i])
         train_index=np.concatenate(train_list)
         print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
-
-        data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=f"{data_root}{dataset}/FOLD_{fold_n}.pickle")
+        pkl_= f"{data_root}{dataset}/FOLD_{fold_n}_{data.X.shape}.pickle"
+        data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=pkl_)
         # data.plot()
         data.Y_mean,data.Y_std = data.y_train.mean(), data.y_train.std()
         if False:
