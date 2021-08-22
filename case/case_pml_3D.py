@@ -29,6 +29,18 @@ class PML_data3D(quantum_forest.TabularDataset):
     def problem(self):
         return "regression"
         #return "regression_N"
+    
+    def Scaling(self,isX=True,isY=True,method="01"):
+        print(f"====== Scaling ...... method={method} onX={isX}  onY={isY}")
+        if isX:
+            x_0,x_1=self.X.min(),self.X.max()
+            self.X = (self.X-x_0)/(x_1-x_0)
+        if isY:
+            y_0,y_1=self.Y.min(),self.Y.max()
+            self.Y = (self.Y-y_0)/(y_1-y_0)
+        lenY = np.linalg.norm(self.Y);            lenX = np.linalg.norm(self.X)
+        pass
+
 
     def load_files(self,isGroup=True):
         self.isTrain = True
@@ -179,7 +191,7 @@ class PML_data3D(quantum_forest.TabularDataset):
     def __init__(self, dataset, data_path, normalize=False,nMostPt=100000,isPrecit=False,ex_ey_hz=0,
                  quantile_transform=False, output_distribution='normal', quantile_noise=1.0e-3, **kwargs):
         #2028组 0.009/0.237
-        self.isScale = True
+        self.isScale = False
         self.random_state = 42
         self.quantile_noise = quantile_noise
         self.name = f"{dataset}"
@@ -247,16 +259,19 @@ if __name__ == "__main__":
     data = PML_data3D(dataset,data_path=data_paths,ex_ey_hz=2)        #,nMostPt=10
     if data.nPoint==0:
         sys.exit(-2)
-    data.plot()
-    config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"    
+    data.Scaling(isY=False)
+    # data.plot()
+    config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"  
+    
     data_root = "F:/Datasets/"   #args.data_root
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)
     config.err_relative = True
     config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"  
+    # config.lr_base = 0.0001
     #config.path_way = "OBLIVIOUS_map"
-    #config.batch_size = 256
-    #config.nTree = 512
+    # config.batch_size = 64
+    # config.nTree = 1
     
     nFold = 5 if dataset != "HIGGS" else 20
     folds = KFold(n_splits=nFold, shuffle=True)
@@ -277,7 +292,8 @@ if __name__ == "__main__":
                 train_list.append(index_sets[i])
         train_index=np.concatenate(train_list)
         print(f"train={len(train_index)} valid={len(valid_index)} test={len(index_sets[fold_n])}")
-        pkl_= f"{data_root}{dataset}/FOLD_{fold_n}_PT{data.nPoint}_X{data.X.shape}_Y{data.ex_ey_hz}_.pickle"
+        pkl_ = f"{data_root}{dataset}/FOLD_{fold_n}_PT{data.nPoint}_X{data.X.shape}_Y{data.ex_ey_hz}_.pickle"
+        pkl_ = None
         data.onFold(fold_n,config,train_index=train_index, valid_index=valid_index,test_index=index_sets[fold_n],pkl_path=pkl_)
         # data.plot()
         data.Y_mean,data.Y_std = data.y_train.mean(), data.y_train.std()

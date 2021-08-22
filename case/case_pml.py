@@ -176,11 +176,11 @@ if __name__ == "__main__":
         exit(-1)
 
     data_paths = [
-            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
-            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型右边的全部离散P点/",
-            #"E:/xiada/FengNX/2028组/模型右边的全部离散P点/",
-            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型下边的全部离散P点/",
-            "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型左边的全部离散P点/",
+            #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
+            #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型右边的全部离散P点/",
+            "H:/PML_datas/2028组/模型上边的全部离散P点/",
+            #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型下边的全部离散P点/",
+            #"E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型左边的全部离散P点/",
         ]
     data = PML_dataset(dataset,data_path=data_paths,ex_ey_hz=2)        #,nMostPt=10
     config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"    
