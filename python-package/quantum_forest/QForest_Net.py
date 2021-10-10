@@ -369,8 +369,10 @@ class QuantumForest(object):
         nBatch = (int)(data.__len__()*config.bagging_fraction)//config.batch_size
         nBatch = min(1024,nBatch)
         for epoch in range(config.nMostEpochs):   
+            config.log_writer.epoch = epoch
             # for batch in iterate_minibatch(data.X_train, y_train, batch_size=config.batch_size,shuffle=True, epochs=float('inf')):
             for batch in data.yield_batch(config.batch_size,subsample=config.bagging_fraction,shuffle=True, nMostBatch=nBatch):
+                config.log_writer.step = trainer.step
                 metrics = trainer.train_on_batch(*batch, device=config.device)                            
                 loss_history.append(metrics['loss'])
                 if trainer.step%10==0 or (trainer.step)%nBatch==0:
@@ -392,6 +394,9 @@ class QuantumForest(object):
                 self.visual.UpdateLoss(title=f"Accuracy on \"{data.name}\"",legend=f"{config.experiment}", loss=mse,yLabel="Accuracy")
             print(f"Time: [{time.time()-t0:.6f}]	[{epoch}]	valid_0's rmse: {mse}")   #为了和其它库的epoch输出一致
             # VisualAfterEpoch(epoch,visual,config,mse)  
+            if config.verbose:
+                config.log_writer.add_scalar('train/loss', metrics['loss'], epoch)
+                config.log_writer.add_scalar('valid/rmse', mse, epoch)
             if "test_once" in flags:
                 break    
 

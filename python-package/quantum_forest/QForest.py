@@ -6,6 +6,22 @@
 @
 # Description: 
 '''
+from torch.utils.tensorboard import SummaryWriter
+import os
+import datetime
+
+class DeepLogger(SummaryWriter):
+    def __init__(self,*args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.epoch = -1
+        self.batch_idx = -1
+
+        print(f"DeepLogger@{self.log_dir}......")
+
+    def isPlot(self):
+        return False
+        #return self.batch_idx==2
+
 class QForest_config:
     def __init__(self,data, lr_base, nLayer=1,choice_func="r_0.5",feat_info = None,random_seed=42):
         self.model = "QForest"
@@ -101,6 +117,15 @@ class QForest_config:
         
         if self.data_normal == "NN":
             self.feat_info = ""
+
+        self.InitLogWriter(root_path="H:/papers/",datas_name=data_set)
+    
+    def InitLogWriter(self,root_path,datas_name,sFac="",sGPU=""):
+        self.verbose = True
+                
+        log_dir = os.path.join(f"{root_path}/logs/", "{}/__{}_{}_{}_{}".format(datas_name,self.model, sFac, sGPU,datetime.datetime.now().strftime('%m-%d_%H-%M')))
+        os.makedirs(log_dir, exist_ok=True)
+        self.log_writer = DeepLogger(log_dir) if self.verbose else None
 
     def problem(self):
         return self.data.problem()

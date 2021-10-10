@@ -254,7 +254,7 @@ if __name__ == "__main__":
             # "H:/PML_datas/2028组/模型上边的全部离散P点/",       #
             # "H:/PML_datas/tiny/",
             "H:/PML_datas/3D/",
-            # "I:/PML_datas/3D/Z_1第一层/模型上边的全部离散P点/第26组 p点是模型上边第26个点ia加25/"
+            # "H:/PML_datas/3D/Z_1第一层/模型上边的全部离散P点/"
         ]
     data = PML_data3D(dataset,data_path=data_paths,ex_ey_hz=2)        #,nMostPt=10
     if data.nPoint==0:
@@ -263,6 +263,7 @@ if __name__ == "__main__":
     # data.plot()
     config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"  
     
+
     data_root = "F:/Datasets/"   #args.data_root
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)
