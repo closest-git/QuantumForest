@@ -260,7 +260,7 @@ class QF_Net(nn.Module):
             if self.visual is not None:
                 path = f"{self.config.data_set}_{type}_{epoch}"
                 params = {'title':f"{epoch} - {accu:.4f}",'cmap':sns.cm.rocket}
-                self.visual.image(path,attention[:,cols],params=params)
+                # self.visual.image(path,attention[:,cols],params=params)
             else:
                 pass
                 # plt.imshow(attention[:,cols])

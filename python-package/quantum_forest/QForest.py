@@ -118,7 +118,7 @@ class QForest_config:
         if self.data_normal == "NN":
             self.feat_info = ""
 
-        self.InitLogWriter(root_path="H:/papers/",datas_name=data_set)
+        self.InitLogWriter(root_path="F:/papers/",datas_name=data_set)
     
     def InitLogWriter(self,root_path,datas_name,sFac="",sGPU=""):
         self.verbose = True

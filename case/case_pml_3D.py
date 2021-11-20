@@ -251,12 +251,12 @@ if __name__ == "__main__":
 
     data_paths = [
             # "E:/xiada/FengNX/228组上下左右不同p点对应的十五个场分量的数值变化/模型上边的全部离散P点/",
-            # "H:/PML_datas/2028组/模型上边的全部离散P点/",       #
-            # "H:/PML_datas/tiny/",
-            "H:/PML_datas/3D/",
-            # "H:/PML_datas/3D/Z_1第一层/模型上边的全部离散P点/"
+            # "F:/PML_datas/2028组/模型上边的全部离散P点/",       #
+            # "F:/PML_datas/tiny/",
+            "F:/PML_datas/3D/",
+            # "F:/PML_datas/3D/Z_1第一层/模型上边的全部离散P点/"
         ]
-    data = PML_data3D(dataset,data_path=data_paths,ex_ey_hz=2)        #,nMostPt=10
+    data = PML_data3D(dataset,data_path=data_paths,ex_ey_hz=1)        #,nMostPt=10
     if data.nPoint==0:
         sys.exit(-2)
     data.Scaling(isY=False)
