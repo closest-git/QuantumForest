@@ -1,5 +1,6 @@
 
 import os, sys
+import math
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -27,20 +28,20 @@ class PML_data3D(quantum_forest.TabularDataset):
         return isY,key,name
 
     def problem(self):
-        return "regression"
-        #return "regression_N"
+        #return "regression"
+        return "regression_N"
     
     def Scaling(self,isX=True,isY=True,method="01"):
         print(f"====== Scaling ...... method={method} onX={isX}  onY={isY}")
         if isX:
             x_0,x_1=self.X.min(),self.X.max()
-            self.X = (self.X-x_0)/(x_1-x_0)
+            self.X = 2*((self.X-x_0)/(x_1-x_0)-0.5)
         if isY:
+            self.Y_trans_method = ""
             y_0,y_1=self.Y.min(),self.Y.max()
-            self.Y = (self.Y-y_0)/(y_1-y_0)
+            self.Y = 2*((self.Y-y_0)/(y_1-y_0)-0.5)
+            # self.Y = (self.Y-y_0)/(y_1-y_0)
         lenY = np.linalg.norm(self.Y);            lenX = np.linalg.norm(self.X)
-        pass
-
 
     def load_files(self,isGroup=True):
         self.isTrain = True
@@ -93,7 +94,8 @@ class PML_data3D(quantum_forest.TabularDataset):
                 self.X = np.vstack(listX_)
                 if not self.isPrecit:
                     self.Y = np.vstack(listY_)
-                    self.Y=self.Y[:,self.ex_ey_hz]                
+                    if self.ex_ey_hz>0 and self.ex_ey_hz<3:
+                        self.Y=self.Y[:,self.ex_ey_hz]                
                 else:
                     self.Y = np.zeros((self.X.shape[0],3))
                 self.nFeature = self.X.shape[1]
@@ -106,12 +108,12 @@ class PML_data3D(quantum_forest.TabularDataset):
         nX,nY=len(self.X), len(self.Y)
         lenY = np.linalg.norm(self.Y)
         lenX = np.linalg.norm(self.X)
-        if self.isScale:
-            x_0,x_1=self.X.min(),self.X.max()
-            self.X = (self.X-x_0)/(x_1-x_0)
-            y_0,y_1=self.Y.min(),self.Y.max()
-            self.Y = (self.Y-y_0)/(y_1-y_0)
-            lenY = np.linalg.norm(self.Y);            lenX = np.linalg.norm(self.X)
+        # if self.isScale:
+        #     x_0,x_1=self.X.min(),self.X.max()
+        #     self.X = (self.X-x_0)/(x_1-x_0)
+        #     y_0,y_1=self.Y.min(),self.Y.max()
+        #     self.Y = (self.Y-y_0)/(y_1-y_0)
+        #     lenY = np.linalg.norm(self.Y);            lenX = np.linalg.norm(self.X)
         if False:   #时间太长，pandas_profiling低效
             df = pd.DataFrame(self.X)
             print(df.head())
@@ -119,34 +121,24 @@ class PML_data3D(quantum_forest.TabularDataset):
             pfr.to_file("./example.html")
         self.nPoint = nPt
         print(f"X_={self.X.shape} |X|={lenX:.4g} {lenX/nX:.4g}\t \n{self.X[:5,:]}\n{self.X[-5:,:]} ")
-        print(f"Y_={self.Y.shape} |Y|={lenY:.4g} {lenY/nY:.4g}\t \n{self.Y[:10]}\n{self.Y[-10:]}")
+        print(f"Y_={self.Y.shape} ex_ey_hz={self.ex_ey_hz}\t |Y|={lenY:.4g} {lenY/nY:.4g}\t \n{self.Y[:10]}\n{self.Y[-10:]}")
         return 
     
     def plot_arr(self,arr,title):
-        title = title + str(arr.shape)
+        # title = title + str(arr.shape)
+        nFeat = 1 if len(arr.shape)==1 else math.sqrt(arr.shape[1])
         df = pd.DataFrame(arr)
-        df.hist(figsize=(9,6), bins = 100,ec="k")
-
-        # if len(df.columns)==1:
-        #     df.hist()
-        # else:
-        #     nRow = max(1,len(df.columns)//3)
-        #     fig, axes = plt.subplots(nRow, 3, figsize=(12, 24))
-        #     i = 0
-        #     for triaxis in axes:
-        #         for axis in triaxis:
-        #             df.hist(column = df.columns[i], bins = 50, ax=axis)
-        #             i = i+1
-        #     # [x.title.set_size(32) for x in fig.ravel()]
+        df.hist(figsize=(9*nFeat,6*nFeat), bins = 100,ec="k", log=True)
         plt.tight_layout()
-        plt.title(title)
-        plt.show()        
+        plt.suptitle(f"Histogram of {title} data shape={arr.shape}")
+        # plt.show()   
+        plt.savefig(f"F:/Datasets/PML3D/{self.out_name_}_{title}.png")     
         plt.close()
 
-    def plot(self):
+    def plot(self,tit):
         if self.nPoint>0:
-            self.plot_arr(self.X,"X_")
-            self.plot_arr(self.Y,"Y_")
+            self.plot_arr(self.X,f"X@{tit}")
+            self.plot_arr(self.Y,f"Y@{tit}")
 
     def load_files_v0(self,files_path,isMerge=True):
         points,list_of_files = {}, glob.glob(f"{files_path}*")
@@ -191,7 +183,6 @@ class PML_data3D(quantum_forest.TabularDataset):
     def __init__(self, dataset, data_path, normalize=False,nMostPt=100000,isPrecit=False,ex_ey_hz=0,
                  quantile_transform=False, output_distribution='normal', quantile_noise=1.0e-3, **kwargs):
         #2028组 0.009/0.237
-        self.isScale = False
         self.random_state = 42
         self.quantile_noise = quantile_noise
         self.name = f"{dataset}"
@@ -199,8 +190,9 @@ class PML_data3D(quantum_forest.TabularDataset):
         self.nMostPt = nMostPt
         self.isPrecit = isPrecit
         self.ex_ey_hz = ex_ey_hz         #output component
-        P__ =  data_path[0].replace('\\','_').replace('/','_').replace(':','_')
-        self.pkl_path = f"F:/Datasets/PML3D/S{self.isScale}_Q_{quantile_noise}_Y{self.ex_ey_hz}_P{P__}_.pickle"   
+        P__ =  data_path[0].replace('\\','_').replace('/','_').replace(':','_')        
+        self.out_name_ = f"Q_{quantile_noise}_Y{self.ex_ey_hz}_P{P__}_"
+        self.pkl_path = f"F:/Datasets/PML3D/{self.out_name_}.pickle"   
         self.nPoint = 0
         self.X = None;      self.Y = None
         self.load_files(isGroup=True)
@@ -256,22 +248,23 @@ if __name__ == "__main__":
             "F:/PML_datas/3D/",
             # "F:/PML_datas/3D/Z_1第一层/模型上边的全部离散P点/"
         ]
-    data = PML_data3D(dataset,data_path=data_paths,ex_ey_hz=1)        #,nMostPt=10
+    data = PML_data3D(dataset,data_path=data_paths,ex_ey_hz=4)        #,nMostPt=10
     if data.nPoint==0:
         sys.exit(-2)
-    data.Scaling(isY=False)
-    # data.plot()
-    config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance"  
-    
+    Y_scaling=False         #isY=True
+    data.Scaling(isY=Y_scaling)     
+    data.plot(f"scaling={Y_scaling}")
+    config = quantum_forest.QForest_config(data,0.002,feat_info="importance")   #,feat_info="importance" 
 
     data_root = "F:/Datasets/"   #args.data_root
     random_state = 42
     config.device = quantum_forest.OnInitInstance(random_state)
     config.err_relative = True
     config.model="QForest"      #"QForest"            "GBDT" "LinearRegressor"  
+    # config.response_dim = 1
     # config.lr_base = 0.0001
-    #config.path_way = "OBLIVIOUS_map"
-    # config.batch_size = 64
+    # config.path_way = "OBLIVIOUS_map"
+    # config.batch_size = 1024
     # config.nTree = 1
     
     nFold = 5 if dataset != "HIGGS" else 20

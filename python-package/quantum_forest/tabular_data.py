@@ -179,7 +179,8 @@ class TabularDataset:
                 #self.y_train = self.y_train.astype(np.float32)
                 self.Y_trans_method,self.accu_scale,self.Y_mu_0, self.Y_std_0=None,None,None,None
             elif isTrans:   #regression
-                self.Y_trans_method = "normal"
+                if not hasattr(self,"Y_trans_method"):
+                    self.Y_trans_method = "normal"
                 self.y_train = self.Y_trans(self.y_train,isPredict=False)
                 self.y_valid = self.y_valid.astype(np.float32)
                 if self.y_test is not None:     self.y_test = self.y_test.astype(np.float32)    
